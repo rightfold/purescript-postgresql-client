@@ -1,0 +1,95 @@
+#!/usr/bin/env perl6
+use v6;
+use NativeCall;
+
+module libpq {
+    sub PQconnectdb(Str --> Pointer[void]) is native("libpq") {*}
+
+    sub PQstatus(Pointer[void] --> int32) is native("libpq") {*}
+    sub PQerrorMessage(Pointer[void] --> Str) is native("libpq") {*}
+    sub PQresultStatus(Pointer[void] --> int32) is native("libpq") {*}
+    sub PQresultErrorMessage(Pointer[void] --> Str) is native("libpq") {*}
+
+    sub PQprepare(Pointer[void], Str, Str, int32, Pointer[void] --> Pointer[void]) is native("libpq") {*}
+    sub PQdescribePrepared(Pointer[void], Str --> Pointer[void]) is native("libpq") {*}
+    sub PQnparams(Pointer[void] --> int32) is native("libpq") {*}
+    sub PQparamtype(Pointer[void], int32 --> uint32) is native("libpq") {*}
+    sub PQnfields(Pointer[void] --> int32) is native("libpq") {*}
+    sub PQftype(Pointer[void], int32 --> uint32) is native("libpq") {*}
+
+    our class Description {
+        has Int:D @.parameters;
+        has Int:D @.fields;
+    }
+
+    our class Connection {
+        has Pointer[void] $!handle;
+
+        method new(Str:D $connection-string) {
+            self.bless(:$connection-string);
+        }
+
+        submethod BUILD(Str:D :$connection-string) {
+            my $handle = PQconnectdb($connection-string);
+            die PQerrorMessage($handle) unless PQstatus($handle) == 0;
+            $!handle = $handle;
+        }
+
+        method prepare(Str:D $name, Str:D $source) {
+            my $result = PQprepare($!handle, $name, $source, 0, Nil);
+            die PQerrorMessage($!handle) unless $result.defined;
+            die PQresultErrorMessage($result) unless PQresultStatus($result) == 1;
+        }
+
+        method describe-prepared(Str:D $name) {
+            my $result = PQdescribePrepared($!handle, $name);
+            die PQerrorMessage($!handle) unless $result.defined;
+            die PQresultErrorMessage($result) unless PQresultStatus($result) == 1;
+            my @parameters = (0 ..^ PQnparams($result)).map({PQparamtype($result, $_)});
+            my @fields = (0 ..^ PQnfields($result)).map({PQftype($result, $_)});
+            Description.new(:@parameters, :@fields);
+        }
+    }
+}
+
+my Str:D %types{Int:D} =
+    16 => 'Boolean',
+    17 => 'ByteString',
+    18 => 'Char',
+    23 => 'Int',
+    25 => 'String',
+    701 => 'Number',
+    2950 => 'UUID',
+;
+
+sub process-module($conn, Str:D $segment) {
+    S:g/'[query|' (.*?) '|]'/&process-query($conn, ~$0)/ given $segment;
+}
+
+sub process-query($conn, Str:D $source) {
+    $conn.prepare('', $source);
+    my $description = $conn.describe-prepared('');
+    my &convert-types = { ($_.map({%types{$_}}), "Unit").flat.join(" × "); };
+    my $parameters = &convert-types($description.parameters);
+    my $fields = &convert-types($description.fields);
+    "(Query \"\"\"$source\"\"\" :: Query ($parameters) ($fields))";
+}
+
+sub MAIN {
+    my $conn = libpq::Connection.new("user=postgres password=lol123 dbname=nn");
+
+    print process-module($conn, $=finish);
+}
+
+=finish
+module M where
+
+f :: Query (String × Unit) (UUID × String × Unit)
+f = [query|
+    SELECT id, name
+    FROM files
+    WHERE author_id = $1
+|]
+
+g :: Query Unit (Boolean × Unit)
+g = [query|SELECT pg_try_advisory_lock(3735928559)|]
