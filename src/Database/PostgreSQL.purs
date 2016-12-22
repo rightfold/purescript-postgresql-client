@@ -3,6 +3,7 @@ module Database.PostgreSQL
 , PoolConfiguration
 , Pool
 , Connection
+, Query(..)
 , class ToSQLRow
 , class FromSQLRow
 , class ToSQLValue
@@ -26,6 +27,7 @@ import Data.Foreign (Foreign, readArray, readString, toForeign)
 import Data.List (List)
 import Data.List as List
 import Data.Maybe (fromJust, Maybe(..))
+import Data.Newtype (class Newtype)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple)
 import Data.Tuple.Nested ((/\), tuple1, tuple2, tuple3, tuple4, tuple5)
@@ -47,6 +49,10 @@ type PoolConfiguration =
 foreign import data Pool :: *
 
 foreign import data Connection :: *
+
+newtype Query i o = Query String
+
+derive instance newtypeQuery :: Newtype (Query i o) _
 
 class ToSQLRow a where
     toSQLRow :: a -> Array Foreign
@@ -131,29 +137,29 @@ withTransaction
     -> Aff (postgreSQL :: POSTGRESQL | eff) a
     -> Aff (postgreSQL :: POSTGRESQL | eff) a
 withTransaction conn action =
-    execute conn "BEGIN TRANSACTION" unit
+    execute conn (Query "BEGIN TRANSACTION") unit
     *> catchError (Right <$> action) (pure <<< Left) >>= case _ of
-        Right a -> execute conn "COMMIT TRANSACTION" unit $> a
-        Left e -> execute conn "ROLLBACK TRANSACTION" unit *> throwError e
+        Right a -> execute conn (Query "COMMIT TRANSACTION") unit $> a
+        Left e -> execute conn (Query "ROLLBACK TRANSACTION") unit *> throwError e
 
 execute
-    :: ∀ i eff
+    :: ∀ i o eff
      . (ToSQLRow i)
     => Connection
-    -> String
+    -> Query i o
     -> i
     -> Aff (postgreSQL :: POSTGRESQL | eff) Unit
-execute conn sql values =
+execute conn (Query sql) values =
     void $ _query conn sql (toSQLRow values)
 
 query
     :: ∀ i o eff
      . (ToSQLRow i, FromSQLRow o)
     => Connection
-    -> String
+    -> Query i o
     -> i
     -> Aff (postgreSQL :: POSTGRESQL | eff) (Array o)
-query conn sql values =
+query conn (Query sql) values =
     _query conn sql (toSQLRow values)
     <#> map (unsafePartial fromJust <<< fromSQLRow)
 
