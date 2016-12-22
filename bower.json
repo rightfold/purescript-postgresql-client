@@ -1,0 +1,15 @@
+{
+  "name": "purescript-postgresql-client",
+  "dependencies": {
+    "purescript-prelude": "^2.1.0",
+    "purescript-transformers": "^2.0.2",
+    "purescript-lists": "^3.2.1",
+    "purescript-foreign": "^3.0.1",
+    "purescript-partial": "^1.1.2",
+    "purescript-tuples": "^3.0.0",
+    "purescript-aff": "^2.0.2",
+    "purescript-either": "^2.0.0",
+    "purescript-maybe": "^2.0.1",
+    "purescript-foldable-traversable": "^2.0.0"
+  }
+}
