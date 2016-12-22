@@ -60,6 +60,7 @@ my Str:D %types{Int:D} =
     25 => 'String',
     701 => 'Number',
     2950 => 'UUID',
+    2951 => 'List String',
 ;
 
 sub process-module(libpq::Connection:D $conn, Str:D $segment --> Str:D) {
@@ -69,7 +70,10 @@ sub process-module(libpq::Connection:D $conn, Str:D $segment --> Str:D) {
 sub process-query(libpq::Connection:D $conn, Str:D $source --> Str:D) {
     $conn.prepare('', $source);
     my $description = $conn.describe-prepared('');
-    my &convert-types = { ($_.map({%types{$_}}), "Unit").flat.join(" × "); };
+    my &convert-types = {
+        die "unknown oid: $_" unless %types{$_}:exists for $_;
+        ($_.map({%types{$_}}), "Unit").flat.join(" × ");
+    };
     my $parameters = &convert-types($description.parameters);
     my $fields = &convert-types($description.fields);
     "(Query \"\"\"$source\"\"\" :: Query ($parameters) ($fields))";
