@@ -1,5 +1,6 @@
 {
   "name": "purescript-postgresql-client",
+  "license": "BSD-3-Clause",
   "dependencies": {
     "purescript-prelude": "^2.1.0",
     "purescript-transformers": "^2.0.2",
@@ -12,5 +13,9 @@
     "purescript-maybe": "^2.0.1",
     "purescript-foldable-traversable": "^2.0.0",
     "purescript-newtype": "^1.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rightfold/purescript-postgresql-client.git"
   }
 }
