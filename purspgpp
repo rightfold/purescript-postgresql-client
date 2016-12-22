@@ -75,7 +75,7 @@ sub process-query(libpq::Connection:D $conn, Str:D $source --> Str:D) {
     "(Query \"\"\"$source\"\"\" :: Query ($parameters) ($fields))";
 }
 
-sub MAIN(Str $connection-string, IO(Cool) $filename) {
+sub MAIN(Str $connection-string, IO(Cool) $in-file, IO(Cool) $out-file) {
     my $conn = libpq::Connection.new($connection-string);
-    print process-module($conn, $filename.slurp);
+    $out-file.spurt(process-module($conn, $in-file.slurp));
 }
