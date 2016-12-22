@@ -75,7 +75,7 @@ sub process-query($conn, Str:D $source) {
     "(Query \"\"\"$source\"\"\" :: Query ($parameters) ($fields))";
 }
 
-sub MAIN(IO(Cool) $filename) {
-    my $conn = libpq::Connection.new("user=postgres password=lol123 dbname=nn");
+sub MAIN(Str $connection-string, IO(Cool) $filename) {
+    my $conn = libpq::Connection.new($connection-string);
     print process-module($conn, $filename.slurp);
 }
