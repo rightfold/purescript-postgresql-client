@@ -23,7 +23,7 @@ import Control.Monad.Aff (Aff)
 import Control.Monad.Error.Class (catchError, throwError)
 import Control.Monad.Except (runExcept)
 import Data.Either (Either(..))
-import Data.Foreign (Foreign, readArray, readString, toForeign)
+import Data.Foreign (Foreign, readArray, readChar, readString, toForeign)
 import Data.List (List)
 import Data.List as List
 import Data.Maybe (fromJust, Maybe(..))
@@ -107,6 +107,12 @@ instance fromSQLRowTuple4 :: (FromSQLValue a, FromSQLValue b, FromSQLValue c, Fr
 instance fromSQLRowTuple5 :: (FromSQLValue a, FromSQLValue b, FromSQLValue c, FromSQLValue d, FromSQLValue e) => FromSQLRow (Tuple a (Tuple b (Tuple c (Tuple d (Tuple e Unit))))) where
     fromSQLRow [a, b, c, d, e] = tuple5 <$> fromSQLValue a <*> fromSQLValue b <*> fromSQLValue c <*> fromSQLValue d <*> fromSQLValue e
     fromSQLRow _ = Nothing
+
+instance toSQLValueChar :: ToSQLValue Char where
+    toSQLValue = toForeign
+
+instance fromSQLValueChar :: FromSQLValue Char where
+    fromSQLValue = fromRight <<< runExcept <<< readChar
 
 instance toSQLValueString :: ToSQLValue String where
     toSQLValue = toForeign
