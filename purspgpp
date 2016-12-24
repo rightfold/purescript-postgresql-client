@@ -60,7 +60,7 @@ my Str:D %types{Int:D} =
     25 => 'String',
     701 => 'Number',
     2950 => 'UUID',
-    2951 => 'List String',
+    2951 => 'List UUID',
 ;
 
 sub process-module(libpq::Connection:D $conn, Str:D $segment --> Str:D) {
