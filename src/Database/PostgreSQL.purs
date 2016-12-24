@@ -36,6 +36,7 @@ import Prelude
 
 foreign import data POSTGRESQL :: !
 
+-- | PostgreSQL connection pool configuration.
 type PoolConfiguration =
     { user              :: String
     , password          :: String
@@ -46,23 +47,30 @@ type PoolConfiguration =
     , idleTimeoutMillis :: Int
     }
 
+-- | PostgreSQL connection pool.
 foreign import data Pool :: *
 
+-- | PostgreSQL connection.
 foreign import data Connection :: *
 
+-- | PostgreSQL query with parameter (`$1`, `$2`, …) and return types.
 newtype Query i o = Query String
 
 derive instance newtypeQuery :: Newtype (Query i o) _
 
+-- | Convert things to SQL rows.
 class ToSQLRow a where
     toSQLRow :: a -> Array Foreign
 
+-- | Convert things from SQL rows.
 class FromSQLRow a where
     fromSQLRow :: Array Foreign -> Maybe a
 
+-- | Convert things to SQL values.
 class ToSQLValue a where
     toSQLValue :: a -> Foreign
 
+-- | Convert things from SQL values.
 class FromSQLValue a where
     fromSQLValue :: Foreign -> Maybe a
 
@@ -126,17 +134,24 @@ instance fromSQLValueArray :: (FromSQLValue a) => FromSQLValue (Array a) where
 instance fromSQLValueList :: (FromSQLValue a) => FromSQLValue (List a) where
     fromSQLValue = map List.fromFoldable <<< traverse fromSQLValue <=< fromRight <<< runExcept <<< readArray
 
+-- | Create a new connection pool.
 foreign import newPool
     :: ∀ eff
      . PoolConfiguration
     -> Aff (postgreSQL :: POSTGRESQL | eff) Pool
 
+-- | Run an action with a connection. The connection is released to the pool
+-- | when the action returns.
 foreign import withConnection
     :: ∀ eff a
      . Pool
     -> (Connection -> Aff (postgreSQL :: POSTGRESQL | eff) a)
     -> Aff (postgreSQL :: POSTGRESQL | eff) a
 
+-- | Run an action within a transaction. The transaction is committed if the
+-- | action returns, and rolled back when the action throws. If you want to
+-- | change the transaction mode, issue a separate `SET TRANSACTION` statement
+-- | within the transaction.
 withTransaction
     :: ∀ eff a
      . Connection
@@ -148,6 +163,7 @@ withTransaction conn action =
         Right a -> execute conn (Query "COMMIT TRANSACTION") unit $> a
         Left e -> execute conn (Query "ROLLBACK TRANSACTION") unit *> throwError e
 
+-- | Execute a PostgreSQL query and discard its results.
 execute
     :: ∀ i o eff
      . (ToSQLRow i)
@@ -158,6 +174,7 @@ execute
 execute conn (Query sql) values =
     void $ _query conn sql (toSQLRow values)
 
+-- | Execute a PostgreSQL query and return its results.
 query
     :: ∀ i o eff
      . (ToSQLRow i, FromSQLRow o)
