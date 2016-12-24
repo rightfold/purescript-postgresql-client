@@ -63,11 +63,11 @@ my Str:D %types{Int:D} =
     2951 => 'List UUID',
 ;
 
-sub process-module(libpq::Connection:D $conn, Str:D $segment --> Str:D) {
+sub process-module(libpq::Connection $conn, Str:D $segment --> Str:D) {
     S:g/'[query|' (.*?) '|]'/&process-query($conn, ~$0)/ given $segment;
 }
 
-sub process-query(libpq::Connection:D $conn, Str:D $source --> Str:D) {
+multi sub process-query(libpq::Connection:D $conn, Str:D $source --> Str:D) {
     $conn.prepare('', $source);
     my $description = $conn.describe-prepared('');
     my &convert-types = {
@@ -79,7 +79,15 @@ sub process-query(libpq::Connection:D $conn, Str:D $source --> Str:D) {
     "(Query \"\"\"$source\"\"\" :: Query ($parameters) ($fields))";
 }
 
-sub MAIN(Str $connection-string, IO(Cool) $in-file, IO(Cool) $out-file = '-') {
+multi sub process-query(libpq::Connection:U $conn, Str:D $source --> Str:D) {
+    "(Query \"\"\"$source\"\"\")";
+}
+
+multi sub MAIN(Str $connection-string, IO(Cool) $in-file, IO(Cool) $out-file = '-', Bool :$syntax-only where !*) {
     my $conn = libpq::Connection.new($connection-string);
     $out-file.spurt(process-module($conn, $in-file.slurp));
+}
+
+multi sub MAIN(IO(Cool) $in-file, IO(Cool) $out-file = '-', Bool :$syntax-only where *) {
+    $out-file.spurt(process-module(libpq::Connection, $in-file.slurp));
 }
