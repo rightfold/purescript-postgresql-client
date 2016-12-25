@@ -54,42 +54,52 @@ module libpq {
     }
 }
 
-my Str:D %types{Int:D} =
-    16 => 'Boolean',
-    17 => 'ByteString',
-    18 => 'Char',
-    23 => 'Int',
-    25 => 'String',
-    701 => 'Number',
-    2950 => 'UUID',
-    2951 => 'List UUID',
-;
+constant DEFAULT-MAPPING = q:to/EOF/;
+    16 Boolean
+    17 ByteString
+    18 Char
+    23 Int
+    25 String
+    701 Number
+    2950 UUID
+    2951 List UUID
+EOF
 
-sub process-module(libpq::Connection $conn, Str:D $segment --> Str:D) {
-    S:g/'[query|' (.*?) '|]'/&process-query($conn, ~$0)/ given $segment;
+sub process-module(libpq::Connection $conn, %mapping, Str:D $segment --> Str:D) {
+    S:g/'[query|' (.*?) '|]'/&process-query($conn, %mapping, ~$0)/ given $segment;
 }
 
-multi sub process-query(libpq::Connection:D $conn, Str:D $source --> Str:D) {
+multi sub process-query(libpq::Connection:D $conn, %mapping, Str:D $source --> Str:D) {
     $conn.prepare: '', $source;
     my $description = $conn.describe-prepared('');
     sub convert-types(@oids) {
-        die "unknown oid: $_" unless %types{$_}:exists for @oids;
-        (|@oids.map({%types{$_}}), "Unit").join(" × ");
+        die "unknown oid: $_" unless %mapping{$_}:exists for @oids;
+        (|@oids.map({%mapping{$_}}), "Unit").join(" × ");
     };
     my $parameters = convert-types($description.parameters);
     my $fields = convert-types($description.fields);
     "(Query \"\"\"$source\"\"\" :: Query ($parameters) ($fields))";
 }
 
-multi sub process-query(libpq::Connection:U, Str:D $source --> Str:D) {
+multi sub process-query(libpq::Connection:U $conn, %mapping, Str:D $source --> Str:D) {
     "(Query \"\"\"$source\"\"\")";
 }
 
-multi sub MAIN(Str $connection-string, IO(Cool) $in-file, IO(Cool) $out-file = '-', Bool :$syntax-only where !*) {
-    my $conn = libpq::Connection.new($connection-string);
-    $out-file.spurt: process-module($conn, $in-file.slurp);
+sub main(libpq::Connection $conn, IO::Path:D $in-file, IO::Path:D $out-file, Bool:D $syntax-only, IO::Path $mapping-file) {
+    my %mapping{Int:D} =
+        (do with $mapping-file { .slurp } else { DEFAULT-MAPPING })
+        .lines
+        .map(*.trim.split(/\s+/, 2))
+        .grep(*.elems == 2)
+        .map({+$_[0] => $_[1]});
+    $out-file.spurt: process-module($conn, %mapping, $in-file.slurp);
 }
 
-multi sub MAIN(IO(Cool) $in-file, IO(Cool) $out-file = '-', Bool :$syntax-only where *) {
-    $out-file.spurt: process-module(libpq::Connection, $in-file.slurp);
+multi sub MAIN(Str $connection-string, IO(Cool) $in-file, IO(Cool) $out-file = '-', Bool :$syntax-only where !*, IO(Cool) :$mapping-file) {
+    my $conn = libpq::Connection.new($connection-string);
+    main($conn, $in-file, $out-file, $syntax-only // False, $mapping-file);
+}
+
+multi sub MAIN(IO(Cool) $in-file, IO(Cool) $out-file = '-', Bool :$syntax-only where *, IO(Cool) :$mapping-file) {
+    main(libpq::Connection, $in-file, $out-file, $syntax-only // False, $mapping-file);
 }
