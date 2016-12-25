@@ -3,19 +3,21 @@ use v6;
 use NativeCall;
 
 module libpq {
-    sub PQconnectdb(Str --> Pointer[void]) is native("libpq") {*}
+    constant LIBPQ = "libpq";
 
-    sub PQstatus(Pointer[void] --> int32) is native("libpq") {*}
-    sub PQerrorMessage(Pointer[void] --> Str) is native("libpq") {*}
-    sub PQresultStatus(Pointer[void] --> int32) is native("libpq") {*}
-    sub PQresultErrorMessage(Pointer[void] --> Str) is native("libpq") {*}
+    sub PQconnectdb(Str --> Pointer[void]) is native(LIBPQ) {*}
 
-    sub PQprepare(Pointer[void], Str, Str, int32, Pointer[void] --> Pointer[void]) is native("libpq") {*}
-    sub PQdescribePrepared(Pointer[void], Str --> Pointer[void]) is native("libpq") {*}
-    sub PQnparams(Pointer[void] --> int32) is native("libpq") {*}
-    sub PQparamtype(Pointer[void], int32 --> uint32) is native("libpq") {*}
-    sub PQnfields(Pointer[void] --> int32) is native("libpq") {*}
-    sub PQftype(Pointer[void], int32 --> uint32) is native("libpq") {*}
+    sub PQstatus(Pointer[void] --> int32) is native(LIBPQ) {*}
+    sub PQerrorMessage(Pointer[void] --> Str) is native(LIBPQ) {*}
+    sub PQresultStatus(Pointer[void] --> int32) is native(LIBPQ) {*}
+    sub PQresultErrorMessage(Pointer[void] --> Str) is native(LIBPQ) {*}
+
+    sub PQprepare(Pointer[void], Str, Str, int32, Pointer[void] --> Pointer[void]) is native(LIBPQ) {*}
+    sub PQdescribePrepared(Pointer[void], Str --> Pointer[void]) is native(LIBPQ) {*}
+    sub PQnparams(Pointer[void] --> int32) is native(LIBPQ) {*}
+    sub PQparamtype(Pointer[void], int32 --> uint32) is native(LIBPQ) {*}
+    sub PQnfields(Pointer[void] --> int32) is native(LIBPQ) {*}
+    sub PQftype(Pointer[void], int32 --> uint32) is native(LIBPQ) {*}
 
     our class Description {
         has Int:D @.parameters;
@@ -37,16 +39,16 @@ module libpq {
 
         method prepare(Str:D $name, Str:D $source) {
             my $result = PQprepare($!handle, $name, $source, 0, Nil);
-            die PQerrorMessage($!handle) unless $result.defined;
+            die PQerrorMessage($!handle) without $result;
             die PQresultErrorMessage($result) unless PQresultStatus($result) == 1;
         }
 
         method describe-prepared(Str:D $name) {
             my $result = PQdescribePrepared($!handle, $name);
-            die PQerrorMessage($!handle) unless $result.defined;
+            die PQerrorMessage($!handle) without $result;
             die PQresultErrorMessage($result) unless PQresultStatus($result) == 1;
-            my @parameters = (0 ..^ PQnparams($result)).map({PQparamtype($result, $_)});
-            my @fields = (0 ..^ PQnfields($result)).map({PQftype($result, $_)});
+            my @parameters = (^PQnparams($result)).map({PQparamtype($result, $_)});
+            my @fields = (^PQnfields($result)).map({PQftype($result, $_)});
             Description.new(:@parameters, :@fields);
         }
     }
@@ -68,26 +70,26 @@ sub process-module(libpq::Connection $conn, Str:D $segment --> Str:D) {
 }
 
 multi sub process-query(libpq::Connection:D $conn, Str:D $source --> Str:D) {
-    $conn.prepare('', $source);
+    $conn.prepare: '', $source;
     my $description = $conn.describe-prepared('');
-    my &convert-types = {
-        die "unknown oid: $_" unless %types{$_}:exists for $_;
-        ($_.map({%types{$_}}), "Unit").flat.join(" × ");
+    sub convert-types(@oids) {
+        die "unknown oid: $_" unless %types{$_}:exists for @oids;
+        (|@oids.map({%types{$_}}), "Unit").join(" × ");
     };
-    my $parameters = &convert-types($description.parameters);
-    my $fields = &convert-types($description.fields);
+    my $parameters = convert-types($description.parameters);
+    my $fields = convert-types($description.fields);
     "(Query \"\"\"$source\"\"\" :: Query ($parameters) ($fields))";
 }
 
-multi sub process-query(libpq::Connection:U $conn, Str:D $source --> Str:D) {
+multi sub process-query(libpq::Connection:U, Str:D $source --> Str:D) {
     "(Query \"\"\"$source\"\"\")";
 }
 
 multi sub MAIN(Str $connection-string, IO(Cool) $in-file, IO(Cool) $out-file = '-', Bool :$syntax-only where !*) {
     my $conn = libpq::Connection.new($connection-string);
-    $out-file.spurt(process-module($conn, $in-file.slurp));
+    $out-file.spurt: process-module($conn, $in-file.slurp);
 }
 
 multi sub MAIN(IO(Cool) $in-file, IO(Cool) $out-file = '-', Bool :$syntax-only where *) {
-    $out-file.spurt(process-module(libpq::Connection, $in-file.slurp));
+    $out-file.spurt: process-module(libpq::Connection, $in-file.slurp);
 }
