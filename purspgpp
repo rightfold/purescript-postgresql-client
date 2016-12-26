@@ -72,10 +72,13 @@ sub process-module(libpq::Connection $conn, %mapping, Str:D $segment --> Str:D) 
 multi sub process-query(libpq::Connection:D $conn, %mapping, Str:D $source --> Str:D) {
     $conn.prepare: '', $source;
     my $description = $conn.describe-prepared('');
-    sub convert-types(@oids) {
+    sub convert-types(Int:D @oids --> Str:D) {
         die "unknown oid: $_" unless %mapping{$_}:exists for @oids;
-        (|@oids.map({%mapping{$_}}), "Unit").join(" × ");
-    };
+        multi sub infix:<Tuple>() is assoc<right> { "Unit" }
+        multi sub infix:<Tuple>(Str:D $a) { $a }
+        multi sub infix:<Tuple>(Str:D $a, Str:D $b --> Str:D) { "Tuple ($a) ($b)" }
+        [Tuple] |@oids.map({%mapping{$_}}), "Unit";
+    }
     my $parameters = convert-types($description.parameters);
     my $fields = convert-types($description.fields);
     "(Query \"\"\"$source\"\"\" :: Query ($parameters) ($fields))";

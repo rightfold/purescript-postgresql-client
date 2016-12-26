@@ -23,7 +23,7 @@ purspgpp will replace this by something like the following:
     SELECT first_name, last_name
     FROM users
     WHERE id = $1
-""" :: Query (UUID × Unit) (String × String × Unit))
+""" :: Query (Tuple UUID Unit) (Tuple String (Tuple String Unit))
 ```
 
 You can integrate purspgpp into your build system. For example, here is a
