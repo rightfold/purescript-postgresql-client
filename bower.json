@@ -12,7 +12,8 @@
     "purescript-either": "^2.0.0",
     "purescript-maybe": "^2.0.1",
     "purescript-foldable-traversable": "^2.0.0",
-    "purescript-newtype": "^1.1.0"
+    "purescript-newtype": "^1.1.0",
+    "purescript-bytestrings": "^0.0.3"
   },
   "repository": {
     "type": "git",

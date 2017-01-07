@@ -47,3 +47,7 @@ exports._query = function(client) {
         };
     };
 };
+
+exports.unsafeIsBuffer = function(x) {
+    return x instanceof Buffer;
+};

@@ -22,8 +22,9 @@ module Database.PostgreSQL
 import Control.Monad.Aff (Aff)
 import Control.Monad.Error.Class (catchError, throwError)
 import Control.Monad.Except (runExcept)
+import Data.ByteString (ByteString)
 import Data.Either (Either(..))
-import Data.Foreign (Foreign, readArray, readChar, readString, toForeign)
+import Data.Foreign (Foreign, readArray, readChar, readString, toForeign, unsafeFromForeign)
 import Data.List (List)
 import Data.List as List
 import Data.Maybe (fromJust, Maybe(..))
@@ -133,6 +134,16 @@ instance fromSQLValueArray :: (FromSQLValue a) => FromSQLValue (Array a) where
 
 instance fromSQLValueList :: (FromSQLValue a) => FromSQLValue (List a) where
     fromSQLValue = map List.fromFoldable <<< traverse fromSQLValue <=< fromRight <<< runExcept <<< readArray
+
+instance toSQLValueByteString :: ToSQLValue ByteString where
+    toSQLValue = toForeign
+
+instance fromSQLValueByteString :: FromSQLValue ByteString where
+    fromSQLValue x
+        | unsafeIsBuffer x = Just $ unsafeFromForeign x
+        | otherwise = Nothing
+
+foreign import unsafeIsBuffer :: ∀ a. a -> Boolean
 
 -- | Create a new connection pool.
 foreign import newPool
