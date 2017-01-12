@@ -26,7 +26,8 @@ import Control.Monad.Except (runExcept)
 import Data.Array (head)
 import Data.ByteString (ByteString)
 import Data.Either (Either(..))
-import Data.Foreign (Foreign, readArray, readChar, readInt, readString, toForeign, unsafeFromForeign)
+import Data.Foreign (Foreign, isNull, readArray, readChar, readInt, readString, toForeign, unsafeFromForeign)
+import Data.Foreign.Null (writeNull)
 import Data.List (List)
 import Data.List as List
 import Data.Maybe (fromJust, Maybe(..))
@@ -150,6 +151,14 @@ instance fromSQLValueByteString :: FromSQLValue ByteString where
     fromSQLValue x
         | unsafeIsBuffer x = Just $ unsafeFromForeign x
         | otherwise = Nothing
+
+instance toSQLValueMaybe :: (ToSQLValue a) => ToSQLValue (Maybe a) where
+    toSQLValue Nothing = writeNull
+    toSQLValue (Just x) = toSQLValue x
+
+instance fromSQLValueMaybe :: (FromSQLValue a) => FromSQLValue (Maybe a) where
+    fromSQLValue x | isNull x  = Just Nothing
+                   | otherwise = Just <$> fromSQLValue x
 
 foreign import unsafeIsBuffer :: ∀ a. a -> Boolean
 
