@@ -24,7 +24,7 @@ import Control.Monad.Error.Class (catchError, throwError)
 import Control.Monad.Except (runExcept)
 import Data.ByteString (ByteString)
 import Data.Either (Either(..))
-import Data.Foreign (Foreign, readArray, readChar, readString, toForeign, unsafeFromForeign)
+import Data.Foreign (Foreign, readArray, readChar, readInt, readString, toForeign, unsafeFromForeign)
 import Data.List (List)
 import Data.List as List
 import Data.Maybe (fromJust, Maybe(..))
@@ -122,6 +122,12 @@ instance toSQLValueChar :: ToSQLValue Char where
 
 instance fromSQLValueChar :: FromSQLValue Char where
     fromSQLValue = fromRight <<< runExcept <<< readChar
+
+instance toSQLValueInt :: ToSQLValue Int where
+    toSQLValue = toForeign
+
+instance fromSQLValueInt :: FromSQLValue Int where
+    fromSQLValue = fromRight <<< runExcept <<< readInt
 
 instance toSQLValueString :: ToSQLValue String where
     toSQLValue = toForeign
