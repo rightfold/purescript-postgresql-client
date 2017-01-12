@@ -17,11 +17,13 @@ module Database.PostgreSQL
 , withTransaction
 , execute
 , query
+, scalar
 ) where
 
 import Control.Monad.Aff (Aff)
 import Control.Monad.Error.Class (catchError, throwError)
 import Control.Monad.Except (runExcept)
+import Data.Array (head)
 import Data.ByteString (ByteString)
 import Data.Either (Either(..))
 import Data.Foreign (Foreign, readArray, readChar, readInt, readString, toForeign, unsafeFromForeign)
@@ -30,7 +32,7 @@ import Data.List as List
 import Data.Maybe (fromJust, Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Traversable (traverse)
-import Data.Tuple (Tuple)
+import Data.Tuple (fst, Tuple)
 import Data.Tuple.Nested ((/\), tuple1, tuple2, tuple3, tuple4, tuple5)
 import Partial.Unsafe (unsafePartial)
 import Prelude
@@ -202,6 +204,17 @@ query
 query conn (Query sql) values =
     _query conn sql (toSQLRow values)
     <#> map (unsafePartial fromJust <<< fromSQLRow)
+
+scalar
+    :: ∀ i o eff
+     . (ToSQLRow i, FromSQLValue o)
+    => Connection
+    -> Query i (Tuple o Unit)
+    -> i
+    -> Aff (postgreSQL :: POSTGRESQL | eff) (Maybe o)
+scalar conn sql values =
+    query conn sql values
+    <#> map fst <<< head
 
 foreign import _query
     :: ∀ eff
