@@ -3,7 +3,7 @@ use v6;
 use NativeCall;
 
 module libpq {
-    constant LIBPQ = "libpq";
+    constant LIBPQ = $*DISTRO.is-win ?? "libpq" !! "pq";
 
     sub PQconnectdb(Str --> Pointer[void]) is native(LIBPQ) {*}
 
