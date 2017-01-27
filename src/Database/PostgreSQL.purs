@@ -120,6 +120,9 @@ instance fromSQLRowTuple5 :: (FromSQLValue a, FromSQLValue b, FromSQLValue c, Fr
     fromSQLRow [a, b, c, d, e] = tuple5 <$> fromSQLValue a <*> fromSQLValue b <*> fromSQLValue c <*> fromSQLValue d <*> fromSQLValue e
     fromSQLRow _ = Nothing
 
+instance toSQLValueBoolean :: ToSQLValue Boolean where
+    toSQLValue = toForeign
+
 instance toSQLValueChar :: ToSQLValue Char where
     toSQLValue = toForeign
 
