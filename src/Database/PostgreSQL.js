@@ -1,10 +1,12 @@
 'use strict';
 
+var Control_Monad_Aff = require('../Control.Monad.Aff');
 var pg = require('pg');
 
 exports.newPool = function(config) {
     return function(onSuccess, onError) {
         onSuccess(new pg.Pool(config));
+        return Control_Monad_Aff.nonCanceler;
     };
 };
 
@@ -24,6 +26,7 @@ exports.withConnection = function(pool) {
                     onError(e);
                 });
             });
+            return Control_Monad_Aff.nonCanceler;
         };
     };
 };
@@ -43,6 +46,7 @@ exports._query = function(client) {
                     }
                     onSuccess(result.rows);
                 });
+                return Control_Monad_Aff.nonCanceler;
             };
         };
     };
