@@ -81,20 +81,8 @@ class FromSQLValue a where
 instance toSQLRowUnit :: ToSQLRow Unit where
     toSQLRow _ = []
 
-instance toSQLRowTuple1 :: (ToSQLValue a) => ToSQLRow (Tuple a Unit) where
-    toSQLRow (a /\ _) = [toSQLValue a]
-
-instance toSQLRowTuple2 :: (ToSQLValue a, ToSQLValue b) => ToSQLRow (Tuple a (Tuple b Unit)) where
-    toSQLRow (a /\ b /\ _) = [toSQLValue a, toSQLValue b]
-
-instance toSQLRowTuple3 :: (ToSQLValue a, ToSQLValue b, ToSQLValue c) => ToSQLRow (Tuple a (Tuple b (Tuple c Unit))) where
-    toSQLRow (a /\ b /\ c /\ _) = [toSQLValue a, toSQLValue b, toSQLValue c]
-
-instance toSQLRowTuple4 :: (ToSQLValue a, ToSQLValue b, ToSQLValue c, ToSQLValue d) => ToSQLRow (Tuple a (Tuple b (Tuple c (Tuple d Unit)))) where
-    toSQLRow (a /\ b /\ c /\ d /\ _) = [toSQLValue a, toSQLValue b, toSQLValue c, toSQLValue d]
-
-instance toSQLRowTuple5 :: (ToSQLValue a, ToSQLValue b, ToSQLValue c, ToSQLValue d, ToSQLValue e) => ToSQLRow (Tuple a (Tuple b (Tuple c (Tuple d (Tuple e Unit))))) where
-    toSQLRow (a /\ b /\ c /\ d /\ e /\ _) = [toSQLValue a, toSQLValue b, toSQLValue c, toSQLValue d, toSQLValue e]
+instance toSQLRowTuple :: (ToSQLValue a, ToSQLRow b) => ToSQLRow (Tuple a b) where
+    toSQLRow (a /\ b) = [toSQLValue a] <> toSQLRow b
 
 instance fromSQLRowUnit :: FromSQLRow Unit where
     fromSQLRow [] = Just unit
