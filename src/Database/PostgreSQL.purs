@@ -25,6 +25,7 @@ import Control.Monad.Error.Class (catchError, throwError)
 import Control.Monad.Except (runExcept)
 import Data.Array (head)
 import Data.ByteString (ByteString)
+import Data.DateTime.Instant (Instant)
 import Data.Either (Either(..))
 import Data.Foreign (Foreign, isNull, readArray, readChar, readInt, readString, toForeign, unsafeFromForeign)
 import Data.Foreign.Null (writeNull)
@@ -143,6 +144,9 @@ instance fromSQLValueByteString :: FromSQLValue ByteString where
         | unsafeIsBuffer x = Just $ unsafeFromForeign x
         | otherwise = Nothing
 
+instance toSQLValueInstant :: ToSQLValue Instant where
+    toSQLValue = instantToString
+
 instance toSQLValueMaybe :: (ToSQLValue a) => ToSQLValue (Maybe a) where
     toSQLValue Nothing = writeNull
     toSQLValue (Just x) = toSQLValue x
@@ -151,6 +155,7 @@ instance fromSQLValueMaybe :: (FromSQLValue a) => FromSQLValue (Maybe a) where
     fromSQLValue x | isNull x  = Just Nothing
                    | otherwise = Just <$> fromSQLValue x
 
+foreign import instantToString :: Instant -> Foreign
 foreign import unsafeIsBuffer :: ∀ a. a -> Boolean
 
 -- | Create a new connection pool.

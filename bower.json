@@ -14,7 +14,8 @@
     "purescript-foldable-traversable": "^2.0.0",
     "purescript-newtype": "^1.1.0",
     "purescript-bytestrings": "^0.0.3",
-    "purescript-arrays": "^3.1.0"
+    "purescript-arrays": "^3.1.0",
+    "purescript-datetime": "^2.0.0"
   },
   "repository": {
     "type": "git",
