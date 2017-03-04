@@ -22,7 +22,7 @@ exports.withConnection = function(pool) {
                     done();
                     onSuccess(r);
                 }, function(e) {
-                    done();
+                    done(e);
                     onError(e);
                 });
             });
