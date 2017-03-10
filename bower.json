@@ -13,7 +13,7 @@
     "purescript-maybe": "^2.0.1",
     "purescript-foldable-traversable": "^2.0.0",
     "purescript-newtype": "^1.1.0",
-    "purescript-bytestrings": "^0.0.3",
+    "purescript-bytestrings": "^2.3.0",
     "purescript-arrays": "^3.1.0",
     "purescript-datetime": "^2.0.0"
   },
