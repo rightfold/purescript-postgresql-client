@@ -21,6 +21,7 @@ module Database.PostgreSQL
 ) where
 
 import Control.Monad.Aff (Aff)
+import Control.Monad.Eff.Exception (error)
 import Control.Monad.Error.Class (catchError, throwError)
 import Control.Monad.Except (runExcept)
 import Data.Array (head)
@@ -31,12 +32,11 @@ import Data.Foreign (Foreign, isNull, readArray, readChar, readInt, readString, 
 import Data.Foreign.Null (writeNull)
 import Data.List (List)
 import Data.List as List
-import Data.Maybe (fromJust, Maybe(..))
+import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Traversable (traverse)
 import Data.Tuple (fst, Tuple)
 import Data.Tuple.Nested ((/\), tuple1, tuple2, tuple3, tuple4, tuple5)
-import Partial.Unsafe (unsafePartial)
 import Prelude
 
 foreign import data POSTGRESQL :: !
@@ -208,7 +208,9 @@ query
     -> Aff (postgreSQL :: POSTGRESQL | eff) (Array o)
 query conn (Query sql) values =
     _query conn sql (toSQLRow values)
-    <#> map (unsafePartial fromJust <<< fromSQLRow)
+    >>= traverse (fromSQLRow >>> case _ of
+          Just row -> pure row
+          Nothing  -> throwError (error "incompatible row structure"))
 
 scalar
     :: ∀ i o eff
