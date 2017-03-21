@@ -124,6 +124,9 @@ instance toSQLValueInt :: ToSQLValue Int where
 instance fromSQLValueInt :: FromSQLValue Int where
     fromSQLValue = fromRight <<< runExcept <<< readInt
 
+instance toSQLValueNumber :: ToSQLValue Number where
+    toSQLValue = toForeign
+
 instance toSQLValueString :: ToSQLValue String where
     toSQLValue = toForeign
 
