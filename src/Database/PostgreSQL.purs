@@ -24,7 +24,7 @@ import Control.Monad.Aff (Aff)
 import Control.Monad.Eff.Exception (error)
 import Control.Monad.Error.Class (catchError, throwError)
 import Control.Monad.Except (runExcept)
-import Data.Array (head)
+import Data.Array (head, uncons)
 import Data.ByteString (ByteString)
 import Data.DateTime.Instant (Instant)
 import Data.Either (Either(..))
@@ -36,7 +36,7 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Traversable (traverse)
 import Data.Tuple (fst, Tuple)
-import Data.Tuple.Nested ((/\), tuple1, tuple2, tuple3, tuple4, tuple5)
+import Data.Tuple.Nested ((/\))
 import Prelude
 
 foreign import data POSTGRESQL :: !
@@ -89,25 +89,9 @@ instance fromSQLRowUnit :: FromSQLRow Unit where
     fromSQLRow [] = Just unit
     fromSQLRow _ = Nothing
 
-instance fromSQLRowTuple1 :: (FromSQLValue a) => FromSQLRow (Tuple a Unit) where
-    fromSQLRow [a] = tuple1 <$> fromSQLValue a
-    fromSQLRow _ = Nothing
-
-instance fromSQLRowTuple2 :: (FromSQLValue a, FromSQLValue b) => FromSQLRow (Tuple a (Tuple b Unit)) where
-    fromSQLRow [a, b] = tuple2 <$> fromSQLValue a <*> fromSQLValue b
-    fromSQLRow _ = Nothing
-
-instance fromSQLRowTuple3 :: (FromSQLValue a, FromSQLValue b, FromSQLValue c) => FromSQLRow (Tuple a (Tuple b (Tuple c Unit))) where
-    fromSQLRow [a, b, c] = tuple3 <$> fromSQLValue a <*> fromSQLValue b <*> fromSQLValue c
-    fromSQLRow _ = Nothing
-
-instance fromSQLRowTuple4 :: (FromSQLValue a, FromSQLValue b, FromSQLValue c, FromSQLValue d) => FromSQLRow (Tuple a (Tuple b (Tuple c (Tuple d Unit)))) where
-    fromSQLRow [a, b, c, d] = tuple4 <$> fromSQLValue a <*> fromSQLValue b <*> fromSQLValue c <*> fromSQLValue d
-    fromSQLRow _ = Nothing
-
-instance fromSQLRowTuple5 :: (FromSQLValue a, FromSQLValue b, FromSQLValue c, FromSQLValue d, FromSQLValue e) => FromSQLRow (Tuple a (Tuple b (Tuple c (Tuple d (Tuple e Unit))))) where
-    fromSQLRow [a, b, c, d, e] = tuple5 <$> fromSQLValue a <*> fromSQLValue b <*> fromSQLValue c <*> fromSQLValue d <*> fromSQLValue e
-    fromSQLRow _ = Nothing
+instance fromSQLRowTuple :: (FromSQLValue a, FromSQLRow b) => FromSQLRow (Tuple a b) where
+    fromSQLRow = uncons >=> case _ of
+      {head, tail} -> (/\) <$> fromSQLValue head <*> fromSQLRow tail
 
 instance toSQLValueBoolean :: ToSQLValue Boolean where
     toSQLValue = toForeign
