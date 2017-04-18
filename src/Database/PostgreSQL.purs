@@ -25,6 +25,7 @@ import Control.Monad.Eff.Exception (error)
 import Control.Monad.Error.Class (catchError, throwError)
 import Control.Monad.Except (runExcept)
 import Data.Array (head, uncons)
+import Data.Bifunctor (lmap)
 import Data.ByteString (ByteString)
 import Data.DateTime.Instant (Instant)
 import Data.Either (Either(..))
@@ -69,7 +70,7 @@ class ToSQLRow a where
 
 -- | Convert things from SQL rows.
 class FromSQLRow a where
-    fromSQLRow :: Array Foreign -> Maybe a
+    fromSQLRow :: Array Foreign -> Either String a
 
 -- | Convert things to SQL values.
 class ToSQLValue a where
@@ -77,7 +78,7 @@ class ToSQLValue a where
 
 -- | Convert things from SQL values.
 class FromSQLValue a where
-    fromSQLValue :: Foreign -> Maybe a
+    fromSQLValue :: Foreign -> Either String a
 
 instance toSQLRowUnit :: ToSQLRow Unit where
     toSQLRow _ = []
@@ -86,56 +87,57 @@ instance toSQLRowTuple :: (ToSQLValue a, ToSQLRow b) => ToSQLRow (Tuple a b) whe
     toSQLRow (a /\ b) = [toSQLValue a] <> toSQLRow b
 
 instance fromSQLRowUnit :: FromSQLRow Unit where
-    fromSQLRow [] = Just unit
-    fromSQLRow _ = Nothing
+    fromSQLRow [] = pure unit
+    fromSQLRow _ = throwError "FromSQLRow: row has too many columns"
 
 instance fromSQLRowTuple :: (FromSQLValue a, FromSQLRow b) => FromSQLRow (Tuple a b) where
-    fromSQLRow = uncons >=> case _ of
-      {head, tail} -> (/\) <$> fromSQLValue head <*> fromSQLRow tail
+    fromSQLRow = uncons >>> case _ of
+      Just {head, tail} -> (/\) <$> fromSQLValue head <*> fromSQLRow tail
+      Nothing -> throwError "FromSQLRow: row has too few columns"
 
 instance toSQLValueBoolean :: ToSQLValue Boolean where
     toSQLValue = toForeign
 
 instance fromSQLValueBoolean :: FromSQLValue Boolean where
-    fromSQLValue = fromRight <<< runExcept <<< readBoolean
+    fromSQLValue = lmap show <<< runExcept <<< readBoolean
 
 instance toSQLValueChar :: ToSQLValue Char where
     toSQLValue = toForeign
 
 instance fromSQLValueChar :: FromSQLValue Char where
-    fromSQLValue = fromRight <<< runExcept <<< readChar
+    fromSQLValue = lmap show <<< runExcept <<< readChar
 
 instance toSQLValueInt :: ToSQLValue Int where
     toSQLValue = toForeign
 
 instance fromSQLValueInt :: FromSQLValue Int where
-    fromSQLValue = fromRight <<< runExcept <<< readInt
+    fromSQLValue = lmap show <<< runExcept <<< readInt
 
 instance toSQLValueNumber :: ToSQLValue Number where
     toSQLValue = toForeign
 
 instance fromSQLValueNumber :: FromSQLValue Number where
-    fromSQLValue = fromRight <<< runExcept <<< readNumber
+    fromSQLValue = lmap show <<< runExcept <<< readNumber
 
 instance toSQLValueString :: ToSQLValue String where
     toSQLValue = toForeign
 
 instance fromSQLValueString :: FromSQLValue String where
-    fromSQLValue = fromRight <<< runExcept <<< readString
+    fromSQLValue = lmap show <<< runExcept <<< readString
 
 instance fromSQLValueArray :: (FromSQLValue a) => FromSQLValue (Array a) where
-    fromSQLValue = traverse fromSQLValue <=< fromRight <<< runExcept <<< readArray
+    fromSQLValue = traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
 
 instance fromSQLValueList :: (FromSQLValue a) => FromSQLValue (List a) where
-    fromSQLValue = map List.fromFoldable <<< traverse fromSQLValue <=< fromRight <<< runExcept <<< readArray
+    fromSQLValue = map List.fromFoldable <<< traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
 
 instance toSQLValueByteString :: ToSQLValue ByteString where
     toSQLValue = toForeign
 
 instance fromSQLValueByteString :: FromSQLValue ByteString where
     fromSQLValue x
-        | unsafeIsBuffer x = Just $ unsafeFromForeign x
-        | otherwise = Nothing
+        | unsafeIsBuffer x = pure $ unsafeFromForeign x
+        | otherwise = throwError "FromSQLValue ByteString: not a buffer"
 
 instance toSQLValueInstant :: ToSQLValue Instant where
     toSQLValue = instantToString
@@ -145,7 +147,7 @@ instance toSQLValueMaybe :: (ToSQLValue a) => ToSQLValue (Maybe a) where
     toSQLValue (Just x) = toSQLValue x
 
 instance fromSQLValueMaybe :: (FromSQLValue a) => FromSQLValue (Maybe a) where
-    fromSQLValue x | isNull x  = Just Nothing
+    fromSQLValue x | isNull x  = pure Nothing
                    | otherwise = Just <$> fromSQLValue x
 
 foreign import instantToString :: Instant -> Foreign
@@ -202,8 +204,8 @@ query
 query conn (Query sql) values =
     _query conn sql (toSQLRow values)
     >>= traverse (fromSQLRow >>> case _ of
-          Just row -> pure row
-          Nothing  -> throwError (error "incompatible row structure"))
+          Right row -> pure row
+          Left  msg -> throwError (error msg))
 
 scalar
     :: ∀ i o eff
