@@ -28,7 +28,7 @@ import Data.Array (head, uncons)
 import Data.ByteString (ByteString)
 import Data.DateTime.Instant (Instant)
 import Data.Either (Either(..))
-import Data.Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readString, toForeign, unsafeFromForeign)
+import Data.Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, toForeign, unsafeFromForeign)
 import Data.Foreign.Null (writeNull)
 import Data.List (List)
 import Data.List as List
@@ -113,6 +113,9 @@ instance fromSQLValueInt :: FromSQLValue Int where
 
 instance toSQLValueNumber :: ToSQLValue Number where
     toSQLValue = toForeign
+
+instance fromSQLValueNumber :: FromSQLValue Number where
+    fromSQLValue = fromRight <<< runExcept <<< readNumber
 
 instance toSQLValueString :: ToSQLValue String where
     toSQLValue = toForeign
