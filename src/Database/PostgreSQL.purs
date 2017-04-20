@@ -21,6 +21,7 @@ module Database.PostgreSQL
 ) where
 
 import Control.Monad.Aff (Aff)
+import Control.Monad.Eff (kind Effect)
 import Control.Monad.Eff.Exception (error)
 import Control.Monad.Error.Class (catchError, throwError)
 import Control.Monad.Except (runExcept)
@@ -30,7 +31,6 @@ import Data.ByteString (ByteString)
 import Data.DateTime.Instant (Instant)
 import Data.Either (Either(..))
 import Data.Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, toForeign, unsafeFromForeign)
-import Data.Foreign.Null (writeNull)
 import Data.List (List)
 import Data.List as List
 import Data.Maybe (Maybe(..))
@@ -40,7 +40,7 @@ import Data.Tuple (fst, Tuple)
 import Data.Tuple.Nested ((/\))
 import Prelude
 
-foreign import data POSTGRESQL :: !
+foreign import data POSTGRESQL :: Effect
 
 -- | PostgreSQL connection pool configuration.
 type PoolConfiguration =
@@ -53,11 +53,13 @@ type PoolConfiguration =
     , idleTimeoutMillis :: Int
     }
 
+foreign import null :: Foreign
+
 -- | PostgreSQL connection pool.
-foreign import data Pool :: *
+foreign import data Pool :: Type
 
 -- | PostgreSQL connection.
-foreign import data Connection :: *
+foreign import data Connection :: Type
 
 -- | PostgreSQL query with parameter (`$1`, `$2`, …) and return types.
 newtype Query i o = Query String
@@ -143,7 +145,7 @@ instance toSQLValueInstant :: ToSQLValue Instant where
     toSQLValue = instantToString
 
 instance toSQLValueMaybe :: (ToSQLValue a) => ToSQLValue (Maybe a) where
-    toSQLValue Nothing = writeNull
+    toSQLValue Nothing = null
     toSQLValue (Just x) = toSQLValue x
 
 instance fromSQLValueMaybe :: (FromSQLValue a) => FromSQLValue (Maybe a) where
@@ -196,7 +198,8 @@ execute conn (Query sql) values =
 -- | Execute a PostgreSQL query and return its results.
 query
     :: ∀ i o eff
-     . (ToSQLRow i, FromSQLRow o)
+     . ToSQLRow i
+    => FromSQLRow o
     => Connection
     -> Query i o
     -> i
@@ -209,7 +212,8 @@ query conn (Query sql) values =
 
 scalar
     :: ∀ i o eff
-     . (ToSQLRow i, FromSQLValue o)
+     . ToSQLRow i
+    => FromSQLValue o
     => Connection
     -> Query i (Tuple o Unit)
     -> i

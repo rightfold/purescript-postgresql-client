@@ -59,3 +59,5 @@ exports.instantToString = function(i) {
 exports.unsafeIsBuffer = function(x) {
     return x instanceof Buffer;
 };
+
+exports['null'] = null;
