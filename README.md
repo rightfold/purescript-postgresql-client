@@ -4,9 +4,9 @@ purescript-postgresql-client is a PostgreSQL client library for PureScript.
 
 To use this library, you need to add `pg` as an npm dependency.
 
-Included is a preprocessor, purspgpp, which finds embedded SQL queries in
-PureScript source files and infers their types. Such queries can be written as
-follows:
+Included is an optional preprocessor, purspgpp, which finds embedded SQL
+queries in PureScript source files and infers their types. Such queries can be
+written as follows:
 
 ```purescript
 userName = [query|
