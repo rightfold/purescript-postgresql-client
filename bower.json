@@ -19,5 +19,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/rightfold/purescript-postgresql-client.git"
+  },
+  "devDependencies": {
+    "purescript-assert": "^3.0.0",
+    "purescript-eff": "^3.1.0"
   }
 }
