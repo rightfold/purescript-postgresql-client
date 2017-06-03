@@ -6,8 +6,7 @@ import Control.Monad.Aff (launchAff)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Exception (EXCEPTION)
-import Data.Tuple.Nested ((/\))
-import Database.PostgreSQL (POSTGRESQL, PoolConfiguration, Query(..), execute, newPool, query, withConnection)
+import Database.PostgreSQL (POSTGRESQL, PoolConfiguration, Query(..), Row0(..), Row1(..), Row6(..), execute, newPool, query, withConnection)
 import Prelude
 import Test.Assert (ASSERT, assert)
 
@@ -21,20 +20,20 @@ main = void $ launchAff do
         delicious boolean NOT NULL,
         PRIMARY KEY (name)
       )
-    """) unit
+    """) Row0
 
     execute conn (Query """
       INSERT INTO foods (name, delicious)
       VALUES ($1, $2), ($3, $4), ($5, $6)
-    """) ("pork" /\ true /\ "sauerkraut" /\ false /\ "rookworst" /\ true /\ unit)
+    """) (Row6 "pork" true "sauerkraut" false "rookworst" true)
 
     query conn (Query """
       SELECT name
       FROM foods
       WHERE delicious
       ORDER BY name ASC
-    """) unit
-      >>= liftEff <<< assert <<< (==) ["pork" /\ unit, "rookworst" /\ unit]
+    """) Row0
+      >>= liftEff <<< assert <<< (==) [Row1 "pork", Row1 "rookworst"]
 
     pure unit
 

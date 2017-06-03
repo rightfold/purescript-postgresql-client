@@ -51,13 +51,3 @@ exports._query = function(client) {
         };
     };
 };
-
-exports.instantToString = function(i) {
-    return new Date(i).toUTCString();
-};
-
-exports.unsafeIsBuffer = function(x) {
-    return x instanceof Buffer;
-};
-
-exports['null'] = null;

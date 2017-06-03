@@ -1,17 +1,11 @@
 module Database.PostgreSQL
-( POSTGRESQL
+( module Row
+, module Value
+, POSTGRESQL
 , PoolConfiguration
 , Pool
 , Connection
 , Query(..)
-, class ToSQLRow
-, class FromSQLRow
-, class ToSQLValue
-, class FromSQLValue
-, toSQLRow
-, fromSQLRow
-, toSQLValue
-, fromSQLValue
 , newPool
 , withConnection
 , withTransaction
@@ -24,20 +18,16 @@ import Control.Monad.Aff (Aff)
 import Control.Monad.Eff (kind Effect)
 import Control.Monad.Eff.Exception (error)
 import Control.Monad.Error.Class (catchError, throwError)
-import Control.Monad.Except (runExcept)
-import Data.Array (head, uncons)
-import Data.Bifunctor (lmap)
-import Data.ByteString (ByteString)
-import Data.DateTime.Instant (Instant)
+import Data.Array (head)
 import Data.Either (Either(..))
-import Data.Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, toForeign, unsafeFromForeign)
-import Data.List (List)
-import Data.List as List
+import Data.Foreign (Foreign)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Traversable (traverse)
-import Data.Tuple (fst, Tuple)
-import Data.Tuple.Nested ((/\))
+import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), fromSQLRow, toSQLRow)
+import Database.PostgreSQL.Row as Row
+import Database.PostgreSQL.Value (class FromSQLValue)
+import Database.PostgreSQL.Value as Value
 import Prelude
 
 foreign import data POSTGRESQL :: Effect
@@ -53,8 +43,6 @@ type PoolConfiguration =
     , idleTimeoutMillis :: Int
     }
 
-foreign import null :: Foreign
-
 -- | PostgreSQL connection pool.
 foreign import data Pool :: Type
 
@@ -65,95 +53,6 @@ foreign import data Connection :: Type
 newtype Query i o = Query String
 
 derive instance newtypeQuery :: Newtype (Query i o) _
-
--- | Convert things to SQL rows.
-class ToSQLRow a where
-    toSQLRow :: a -> Array Foreign
-
--- | Convert things from SQL rows.
-class FromSQLRow a where
-    fromSQLRow :: Array Foreign -> Either String a
-
--- | Convert things to SQL values.
-class ToSQLValue a where
-    toSQLValue :: a -> Foreign
-
--- | Convert things from SQL values.
-class FromSQLValue a where
-    fromSQLValue :: Foreign -> Either String a
-
-instance toSQLRowUnit :: ToSQLRow Unit where
-    toSQLRow _ = []
-
-instance toSQLRowTuple :: (ToSQLValue a, ToSQLRow b) => ToSQLRow (Tuple a b) where
-    toSQLRow (a /\ b) = [toSQLValue a] <> toSQLRow b
-
-instance fromSQLRowUnit :: FromSQLRow Unit where
-    fromSQLRow [] = pure unit
-    fromSQLRow _ = throwError "FromSQLRow: row has too many columns"
-
-instance fromSQLRowTuple :: (FromSQLValue a, FromSQLRow b) => FromSQLRow (Tuple a b) where
-    fromSQLRow = uncons >>> case _ of
-      Just {head, tail} -> (/\) <$> fromSQLValue head <*> fromSQLRow tail
-      Nothing -> throwError "FromSQLRow: row has too few columns"
-
-instance toSQLValueBoolean :: ToSQLValue Boolean where
-    toSQLValue = toForeign
-
-instance fromSQLValueBoolean :: FromSQLValue Boolean where
-    fromSQLValue = lmap show <<< runExcept <<< readBoolean
-
-instance toSQLValueChar :: ToSQLValue Char where
-    toSQLValue = toForeign
-
-instance fromSQLValueChar :: FromSQLValue Char where
-    fromSQLValue = lmap show <<< runExcept <<< readChar
-
-instance toSQLValueInt :: ToSQLValue Int where
-    toSQLValue = toForeign
-
-instance fromSQLValueInt :: FromSQLValue Int where
-    fromSQLValue = lmap show <<< runExcept <<< readInt
-
-instance toSQLValueNumber :: ToSQLValue Number where
-    toSQLValue = toForeign
-
-instance fromSQLValueNumber :: FromSQLValue Number where
-    fromSQLValue = lmap show <<< runExcept <<< readNumber
-
-instance toSQLValueString :: ToSQLValue String where
-    toSQLValue = toForeign
-
-instance fromSQLValueString :: FromSQLValue String where
-    fromSQLValue = lmap show <<< runExcept <<< readString
-
-instance fromSQLValueArray :: (FromSQLValue a) => FromSQLValue (Array a) where
-    fromSQLValue = traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
-
-instance fromSQLValueList :: (FromSQLValue a) => FromSQLValue (List a) where
-    fromSQLValue = map List.fromFoldable <<< traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
-
-instance toSQLValueByteString :: ToSQLValue ByteString where
-    toSQLValue = toForeign
-
-instance fromSQLValueByteString :: FromSQLValue ByteString where
-    fromSQLValue x
-        | unsafeIsBuffer x = pure $ unsafeFromForeign x
-        | otherwise = throwError "FromSQLValue ByteString: not a buffer"
-
-instance toSQLValueInstant :: ToSQLValue Instant where
-    toSQLValue = instantToString
-
-instance toSQLValueMaybe :: (ToSQLValue a) => ToSQLValue (Maybe a) where
-    toSQLValue Nothing = null
-    toSQLValue (Just x) = toSQLValue x
-
-instance fromSQLValueMaybe :: (FromSQLValue a) => FromSQLValue (Maybe a) where
-    fromSQLValue x | isNull x  = pure Nothing
-                   | otherwise = Just <$> fromSQLValue x
-
-foreign import instantToString :: Instant -> Foreign
-foreign import unsafeIsBuffer :: ∀ a. a -> Boolean
 
 -- | Create a new connection pool.
 foreign import newPool
@@ -179,10 +78,10 @@ withTransaction
     -> Aff (postgreSQL :: POSTGRESQL | eff) a
     -> Aff (postgreSQL :: POSTGRESQL | eff) a
 withTransaction conn action =
-    execute conn (Query "BEGIN TRANSACTION") unit
+    execute conn (Query "BEGIN TRANSACTION") Row0
     *> catchError (Right <$> action) (pure <<< Left) >>= case _ of
-        Right a -> execute conn (Query "COMMIT TRANSACTION") unit $> a
-        Left e -> execute conn (Query "ROLLBACK TRANSACTION") unit *> throwError e
+        Right a -> execute conn (Query "COMMIT TRANSACTION") Row0 $> a
+        Left e -> execute conn (Query "ROLLBACK TRANSACTION") Row0 *> throwError e
 
 -- | Execute a PostgreSQL query and discard its results.
 execute
@@ -215,12 +114,12 @@ scalar
      . ToSQLRow i
     => FromSQLValue o
     => Connection
-    -> Query i (Tuple o Unit)
+    -> Query i (Row1 o)
     -> i
     -> Aff (postgreSQL :: POSTGRESQL | eff) (Maybe o)
 scalar conn sql values =
     query conn sql values
-    <#> map fst <<< head
+    <#> map (case _ of Row1 a -> a) <<< head
 
 foreign import _query
     :: ∀ eff
