@@ -1,52 +1,48 @@
 'use strict';
 
-var Control_Monad_Aff = require('../Control.Monad.Aff');
 var pg = require('pg');
 
-exports.newPool = function(config) {
-    return function(onSuccess, onError) {
-        onSuccess(new pg.Pool(config));
-        return Control_Monad_Aff.nonCanceler;
+exports.ffiNewPool = function(config) {
+    return function() {
+        return new pg.Pool(config);
     };
 };
 
-exports.withConnection = function(pool) {
-    return function(body) {
-        return function(onSuccess, onError) {
-            pool.connect(function(err, client, done) {
-                if (err !== null) {
-                    onError(err);
-                    return;
-                }
-                body(client)(function(r) {
-                    done();
-                    onSuccess(r);
-                }, function(e) {
-                    done(e);
-                    onError(e);
+exports.ffiConnect = function(pool) {
+    return function(onError) {
+        return function(onSuccess) {
+            return function() {
+                pool.connect(function(err, client, done) {
+                    if (err !== null) {
+                        onError(err)();
+                        return;
+                    }
+                    onSuccess({connection: client, done: done})();
                 });
-            });
-            return Control_Monad_Aff.nonCanceler;
+            };
         };
     };
 };
 
-exports._query = function(client) {
+exports.ffiUnsafeQuery = function(client) {
     return function(sql) {
         return function(values) {
-            return function(onSuccess, onError) {
-                client.query({
-                    text: sql,
-                    values: values,
-                    rowMode: 'array',
-                }, function(err, result) {
-                    if (err !== null) {
-                        onError(err);
-                        return;
-                    }
-                    onSuccess(result.rows);
-                });
-                return Control_Monad_Aff.nonCanceler;
+            return function(onError) {
+                return function(onSuccess) {
+                    return function() {
+                        client.query({
+                            text: sql,
+                            values: values,
+                            rowMode: 'array',
+                        }, function(err, result) {
+                            if (err !== null) {
+                                onError(err)();
+                                return;
+                            }
+                            onSuccess(result.rows)();
+                        });
+                    };
+                };
             };
         };
     };
