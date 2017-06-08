@@ -77,6 +77,12 @@ instance fromSQLValueMaybe :: (FromSQLValue a) => FromSQLValue (Maybe a) where
     fromSQLValue x | isNull x  = pure Nothing
                    | otherwise = Just <$> fromSQLValue x
 
+instance toSQLValueForeign :: ToSQLValue Foreign where
+    toSQLValue = id
+
+instance fromSQLValueForeign :: FromSQLValue Foreign where
+    fromSQLValue = pure
+
 foreign import null :: Foreign
 foreign import instantToString :: Instant -> Foreign
 foreign import unsafeIsBuffer :: ∀ a. a -> Boolean
