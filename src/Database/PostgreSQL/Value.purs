@@ -10,6 +10,7 @@ import Data.Either (Either)
 import Data.Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, toForeign, unsafeFromForeign)
 import Data.List (List)
 import Data.List as List
+import Data.Array(fromFoldable)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
 import Prelude
@@ -55,8 +56,14 @@ instance fromSQLValueString :: FromSQLValue String where
 instance fromSQLValueArray :: (FromSQLValue a) => FromSQLValue (Array a) where
     fromSQLValue = traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
 
+instance toSQLValueArray :: (ToSQLValue a) => ToSQLValue (Array a) where
+    toSQLValue = toForeign <<< map toSQLValue
+
 instance fromSQLValueList :: (FromSQLValue a) => FromSQLValue (List a) where
     fromSQLValue = map List.fromFoldable <<< traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
+
+instance toSQLValueList :: (ToSQLValue a) => ToSQLValue (List a) where
+    toSQLValue = toForeign <<< fromFoldable <<< map toSQLValue
 
 instance toSQLValueByteString :: ToSQLValue ByteString where
     toSQLValue = toForeign
