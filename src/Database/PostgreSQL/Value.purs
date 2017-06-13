@@ -3,6 +3,7 @@ module Database.PostgreSQL.Value where
 import Control.Monad.Eff (kind Effect)
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except (runExcept)
+import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.ByteString (ByteString)
 import Data.DateTime.Instant (Instant)
@@ -10,7 +11,6 @@ import Data.Either (Either)
 import Data.Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, toForeign, unsafeFromForeign)
 import Data.List (List)
 import Data.List as List
-import Data.Array(fromFoldable)
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
 import Prelude
@@ -53,17 +53,17 @@ instance toSQLValueString :: ToSQLValue String where
 instance fromSQLValueString :: FromSQLValue String where
     fromSQLValue = lmap show <<< runExcept <<< readString
 
-instance fromSQLValueArray :: (FromSQLValue a) => FromSQLValue (Array a) where
-    fromSQLValue = traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
-
 instance toSQLValueArray :: (ToSQLValue a) => ToSQLValue (Array a) where
     toSQLValue = toForeign <<< map toSQLValue
 
-instance fromSQLValueList :: (FromSQLValue a) => FromSQLValue (List a) where
-    fromSQLValue = map List.fromFoldable <<< traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
+instance fromSQLValueArray :: (FromSQLValue a) => FromSQLValue (Array a) where
+    fromSQLValue = traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
 
 instance toSQLValueList :: (ToSQLValue a) => ToSQLValue (List a) where
-    toSQLValue = toForeign <<< fromFoldable <<< map toSQLValue
+    toSQLValue = toForeign <<< Array.fromFoldable <<< map toSQLValue
+
+instance fromSQLValueList :: (FromSQLValue a) => FromSQLValue (List a) where
+    fromSQLValue = map List.fromFoldable <<< traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
 
 instance toSQLValueByteString :: ToSQLValue ByteString where
     toSQLValue = toForeign
