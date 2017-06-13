@@ -1,19 +1,35 @@
 module Database.PostgreSQL.Value where
 
+import Control.Applicative (pure)
+import Control.Bind ((<=<))
+import Control.Category (id)
 import Control.Monad.Eff (kind Effect)
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except (runExcept)
+import Control.Monad.Except.Trans (runExceptT)
+import Control.Semigroupoid ((<<<))
 import Data.Array as Array
-import Data.Bifunctor (lmap)
+import Data.Bifunctor (bimap, lmap)
+import Data.Boolean (otherwise)
 import Data.ByteString (ByteString)
+import Data.Date (day, month, year)
+import Data.DateTime (Date, DateTime)
 import Data.DateTime.Instant (Instant)
-import Data.Either (Either)
+import Data.Either (Either(..))
+import Data.Enum (fromEnum)
+import Data.Foldable (foldMap)
 import Data.Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, toForeign, unsafeFromForeign)
+import Data.Function (($))
+import Data.Functor (map, (<$>))
+import Data.Identity (Identity(..))
+import Data.JSDate (JSDate, fromDateTime, readDate, toDate, toDateTime)
 import Data.List (List)
 import Data.List as List
 import Data.Maybe (Maybe(..))
+import Data.Semigroup ((<>))
+import Data.Show (show)
 import Data.Traversable (traverse)
-import Prelude
+import Prelude (bind)
 
 -- | Convert things to SQL values.
 class ToSQLValue a where
@@ -84,6 +100,33 @@ instance fromSQLValueMaybe :: (FromSQLValue a) => FromSQLValue (Maybe a) where
     fromSQLValue x | isNull x  = pure Nothing
                    | otherwise = Just <$> fromSQLValue x
 
+instance toSQLValueDate :: ToSQLValue Date where
+    toSQLValue date = 
+        let yr = fromEnum $ year date
+            mnth = fromEnum $ month date
+            dy = fromEnum $ day date
+        in
+        toForeign $ (show yr)<>"-"<>(show mnth)<>"-"<>(show dy)
+
+instance fromSQLValueDate :: FromSQLValue Date where
+    fromSQLValue x = do
+        let Identity(jsDateE) = runExceptT $ readDate x
+        jsDate <- bimap (foldMap show) id jsDateE
+        case toDate (compensateTZ jsDate) of
+            Just date -> Right date
+            Nothing -> Left "err"
+
+instance toSQLValueDateTime :: ToSQLValue DateTime where
+    toSQLValue date = toForeign $ fromDateTime date 
+
+instance fromSQLValueDateTime :: FromSQLValue DateTime where
+    fromSQLValue x = do
+        let Identity(jsDateE) = runExceptT $ readDate x
+        jsDate <- bimap (foldMap show) id jsDateE
+        case toDateTime jsDate of
+            Just date -> Right date
+            Nothing -> Left "err"
+
 instance toSQLValueForeign :: ToSQLValue Foreign where
     toSQLValue = id
 
@@ -93,3 +136,5 @@ instance fromSQLValueForeign :: FromSQLValue Foreign where
 foreign import null :: Foreign
 foreign import instantToString :: Instant -> Foreign
 foreign import unsafeIsBuffer :: ∀ a. a -> Boolean
+
+foreign import compensateTZ :: JSDate -> JSDate

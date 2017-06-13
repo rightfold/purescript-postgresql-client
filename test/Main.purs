@@ -2,18 +2,71 @@ module Test.Main
   ( main
   ) where
 
+import Prelude
+
 import Control.Monad.Aff (launchAff)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Exception (EXCEPTION, error)
 import Control.Monad.Error.Class (throwError, try)
+import Data.Date (Date, canonicalDate)
+import Data.DateTime (DateTime(..))
+import Data.Enum (toEnum)
+import Data.Foldable (all)
 import Data.Maybe (Maybe(..))
+import Data.Time (Time(..))
 import Database.PostgreSQL (POSTGRESQL, PoolConfiguration, Query(..), Row0(..), Row1(..), Row2(..), Row6(..), execute, newPool, query, scalar, withConnection, withTransaction)
-import Prelude
-import Test.Assert (ASSERT, assert)
+import Database.PostgreSQL.Row (Row3(..))
+import Test.Assert (ASSERT, assert, assert')
 
-main :: ∀ eff. Eff (assert :: ASSERT, exception :: EXCEPTION, postgreSQL :: POSTGRESQL | eff) Unit
-main = void $ launchAff do
+
+time :: Maybe Time
+time = do
+  h <- toEnum 1
+  m <- toEnum 20
+  s <- toEnum 30
+  ms <- toEnum 500
+  pure $ Time h m s ms
+
+date :: Maybe Date
+date = do
+  y <- toEnum 2017
+  m <- toEnum 2
+  d <- toEnum 11
+  pure $ canonicalDate y m d
+
+dateTime :: Maybe DateTime
+dateTime = DateTime <$> date <*> time
+
+testDates :: ∀ eff. Eff (assert :: ASSERT, exception :: EXCEPTION, postgreSQL :: POSTGRESQL | eff) Unit
+testDates = void $ launchAff do
+  pool <- newPool config
+  withConnection pool \conn -> do
+    execute conn (Query """
+      CREATE TEMPORARY TABLE times (
+        datevalue date NOT NULL,
+        tsvalue timestamp NOT NULL,
+        tsvaluetz timestamptz NOT NULL
+      )
+    """) Row0
+
+    execute conn (Query """
+      INSERT INTO times (datevalue, tsvalue, tsvaluetz)
+      VALUES ($1, $2, $3)
+    """) (Row3 date dateTime dateTime)
+
+    (times :: Array (Row3 Date DateTime DateTime)) <- query conn (Query """
+      SELECT *
+      FROM times
+    """) Row0
+
+    liftEff $ assert' "consistently retrieve date and datetime" $
+      all (\(Row3 a b c) -> (Just a) == date && (Just b)  == dateTime && (Just c) == dateTime) times
+
+    pure unit
+
+testCommitAndRollback :: ∀ eff. Eff (assert :: ASSERT, exception :: EXCEPTION, postgreSQL :: POSTGRESQL | eff) Unit
+testCommitAndRollback = void $ launchAff do
   pool <- newPool config
   withConnection pool \conn -> do
     execute conn (Query """
@@ -75,6 +128,11 @@ main = void $ launchAff do
     """) (Row1 n)
     liftEff <<< assert $ count == Just true
 
+main :: ∀ eff. Eff (assert :: ASSERT, exception :: EXCEPTION, postgreSQL :: POSTGRESQL | eff) Unit
+main = do
+  void testDates
+  void testCommitAndRollback
+
 config :: PoolConfiguration
 config =
   { user: "postgres"
@@ -85,3 +143,4 @@ config =
   , max: 10
   , idleTimeoutMillis: 1000
   }
+
