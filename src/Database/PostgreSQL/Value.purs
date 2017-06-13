@@ -3,6 +3,7 @@ module Database.PostgreSQL.Value where
 import Control.Monad.Eff (kind Effect)
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except (runExcept)
+import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.ByteString (ByteString)
 import Data.DateTime.Instant (Instant)
@@ -52,8 +53,14 @@ instance toSQLValueString :: ToSQLValue String where
 instance fromSQLValueString :: FromSQLValue String where
     fromSQLValue = lmap show <<< runExcept <<< readString
 
+instance toSQLValueArray :: (ToSQLValue a) => ToSQLValue (Array a) where
+    toSQLValue = toForeign <<< map toSQLValue
+
 instance fromSQLValueArray :: (FromSQLValue a) => FromSQLValue (Array a) where
     fromSQLValue = traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
+
+instance toSQLValueList :: (ToSQLValue a) => ToSQLValue (List a) where
+    toSQLValue = toForeign <<< Array.fromFoldable <<< map toSQLValue
 
 instance fromSQLValueList :: (FromSQLValue a) => FromSQLValue (List a) where
     fromSQLValue = map List.fromFoldable <<< traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
