@@ -13,10 +13,11 @@
     "purescript-newtype": "^2.0.0",
     "purescript-bytestrings": "^5.0.1",
     "purescript-arrays": "^4.0.1",
-    "purescript-datetime": "^3.0.0",
+    "purescript-datetime": "^3.2.0",
     "purescript-bifunctors": "^3.0.0",
     "purescript-eff": "^3.1.0",
-    "purescript-exceptions": "^3.0.0"
+    "purescript-exceptions": "^3.0.0",
+    "purescript-js-date": "^5.0.0"
   },
   "repository": {
     "type": "git",

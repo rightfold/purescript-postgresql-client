@@ -1,19 +1,32 @@
 module Database.PostgreSQL.Value where
 
-import Control.Monad.Eff (kind Effect)
+import Prelude
+
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except (runExcept)
 import Data.Array as Array
-import Data.Bifunctor (lmap)
+import Control.Monad.Except.Trans (runExceptT)
+
+import Data.Bifunctor (bimap, lmap)
 import Data.ByteString (ByteString)
+import Data.Date (Date, canonicalDate, day, month, year)
+
+import Data.DateTime (DateTime)
 import Data.DateTime.Instant (Instant)
-import Data.Either (Either)
+import Data.Either (Either(..))
+import Data.Enum (class BoundedEnum, fromEnum, toEnum)
+import Data.Foldable (foldMap)
 import Data.Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, toForeign, unsafeFromForeign)
+import Data.Identity (Identity(..))
+import Data.Int (fromString)
+import Data.JSDate (fromDateTime, readDate, toDateTime)
 import Data.List (List)
 import Data.List as List
-import Data.Maybe (Maybe(..))
+
+import Data.Maybe (Maybe(..), maybe)
+import Data.String (Pattern(..), split)
+
 import Data.Traversable (traverse)
-import Prelude
 
 -- | Convert things to SQL values.
 class ToSQLValue a where
@@ -89,6 +102,38 @@ instance toSQLValueForeign :: ToSQLValue Foreign where
 
 instance fromSQLValueForeign :: FromSQLValue Foreign where
     fromSQLValue = pure
+
+instance toSQLValueDate :: ToSQLValue Date where
+    toSQLValue date = 
+        let y = fromEnum $ year date
+            m = fromEnum $ month date
+            d = fromEnum $ day date
+        in toForeign $ (show y)<>"-"<>(show m)<>"-"<>(show d)
+
+instance fromSQLValueDate :: FromSQLValue Date where
+    fromSQLValue x = do
+        let Identity(x) = runExceptT(readString x)
+        str <- bimap (foldMap show) id x
+        case (split (Pattern "-") str) of
+            [ystr,mstr,dstr] -> maybe (Left $ "cannot parse Date " <> str ) Right (do
+                _y <- enumFromString ystr
+                _m <- enumFromString mstr
+                _d <- enumFromString dstr
+                pure $canonicalDate _y _m _d
+            )
+            _ -> Left ("format is not a Date " <> str)
+        where
+            enumFromString :: forall a . BoundedEnum a => String -> Maybe a
+            enumFromString = toEnum <=< fromString
+
+instance toSQLValueDateTime :: ToSQLValue DateTime where
+    toSQLValue date = toForeign $ fromDateTime date
+    
+instance fromSQLValueDateTime :: FromSQLValue DateTime where
+    fromSQLValue x = do        
+        let Identity(x) = runExceptT(readDate x)
+        jsDate <- bimap (foldMap show) id x
+        maybe (Left "cannot convert date out of bounds") Right (toDateTime jsDate)
 
 foreign import null :: Foreign
 foreign import instantToString :: Instant -> Foreign

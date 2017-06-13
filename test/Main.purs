@@ -2,19 +2,78 @@ module Test.Main
   ( main
   ) where
 
+import Prelude (Unit, bind, discard, map, pure, unit, void, ($), (&&), (<$>), (<*>), (<<<), (==))
 import Control.Monad.Aff (launchAff)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Exception (EXCEPTION, error)
 import Control.Monad.Error.Class (throwError, try)
-import Data.Maybe (Maybe(..))
+import Data.Date (Date, canonicalDate)
+import Data.DateTime (DateTime(..))
+import Data.Enum (toEnum)
+import Data.Maybe (Maybe(Just))
+import Data.Time (Time(..))
 import Database.PostgreSQL (POSTGRESQL, PoolConfiguration, Query(..), Row0(..), Row1(..), Row2(..), Row6(..), execute, newPool, query, scalar, withConnection, withTransaction)
-import Prelude
-import Test.Assert (ASSERT, assert)
+import Database.PostgreSQL.Row (Row3(Row3))
+import Test.Assert (ASSERT, assert, assert')
 
 main :: ∀ eff. Eff (assert :: ASSERT, exception :: EXCEPTION, postgreSQL :: POSTGRESQL | eff) Unit
-main = void $ launchAff do
-  pool <- newPool config
+main = do
+  _ <- testCommitAndRollback
+  _ <- testDates
+  pure unit
+
+date :: Maybe Date
+date = do
+  y <- toEnum 2017
+  m <- toEnum 1
+  d <- toEnum 1
+  pure $ canonicalDate y m d
+
+time :: Maybe Time
+time = do
+  h <- toEnum 4
+  m <- toEnum 10
+  s <- toEnum 30
+  ms <- toEnum 500
+  pure $ Time h m s ms
+
+dateTime :: Maybe DateTime
+dateTime = DateTime <$> date <*> time
+
+testDates :: ∀ eff. Eff (assert :: ASSERT, exception :: EXCEPTION, postgreSQL :: POSTGRESQL | eff) Unit
+testDates = void $ launchAff do
+  pool <- newPool config  
+  withConnection pool \conn -> do
+    execute conn (Query """
+      CREATE TEMPORARY TABLE times (
+        datevalue date NOT NULL,
+        timestampvalue timestamptz NOT NULL,
+        timestampvalue_notz timestamp NOT NULL
+      )
+    """) Row0
+
+    execute conn (Query """
+      INSERT INTO times (datevalue, timestampvalue, timestampvalue_notz)
+      VALUES ($1, $2, $3)
+    """) (Row3 date dateTime dateTime)
+    
+    (times :: Array (Row3 Date DateTime DateTime)) <- query conn (Query """
+      SELECT * FROM times
+    """) (Row0)
+
+    liftEff <<< assert' "retrieve consistent time data" $ (map (\(Row3 a b c) -> 
+      date == Just a &&
+      dateTime == Just b &&
+      dateTime == Just c
+    ) times) == [true]
+
+    pure unit
+
+
+testCommitAndRollback :: ∀ eff. Eff (assert :: ASSERT, exception :: EXCEPTION, postgreSQL :: POSTGRESQL | eff) Unit
+testCommitAndRollback = void $ launchAff do
+  pool <- newPool config  
   withConnection pool \conn -> do
     execute conn (Query """
       CREATE TEMPORARY TABLE foods (
