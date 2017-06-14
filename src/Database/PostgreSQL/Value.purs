@@ -22,7 +22,7 @@ import Data.Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt,
 import Data.Function (($))
 import Data.Functor (map, (<$>))
 import Data.Identity (Identity(..))
-import Data.JSDate (JSDate, fromDateTime, readDate, toDate, toDateTime)
+import Data.JSDate (JSDate, fromDateTime, jsdate, readDate, toDate, toDateTime, toString)
 import Data.List (List)
 import Data.List as List
 import Data.Maybe (Maybe(..))
@@ -114,7 +114,7 @@ instance fromSQLValueDate :: FromSQLValue Date where
         jsDate <- bimap (foldMap show) id jsDateE
         case toDate (compensateTZ jsDate) of
             Just date -> Right date
-            Nothing -> Left "err"
+            Nothing -> Left $ "invalid date conversion for " <> (toString jsDate)
 
 instance toSQLValueDateTime :: ToSQLValue DateTime where
     toSQLValue date = toForeign $ fromDateTime date 
@@ -125,7 +125,7 @@ instance fromSQLValueDateTime :: FromSQLValue DateTime where
         jsDate <- bimap (foldMap show) id jsDateE
         case toDateTime jsDate of
             Just date -> Right date
-            Nothing -> Left "err"
+            Nothing -> Left $ "invalid datetime conversion for " <> (toString jsDate)
 
 instance toSQLValueForeign :: ToSQLValue Foreign where
     toSQLValue = id
