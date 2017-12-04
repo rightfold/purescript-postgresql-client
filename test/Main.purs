@@ -2,26 +2,27 @@ module Test.Main
   ( main
   ) where
 
+import Prelude
+
 import Control.Monad.Aff (launchAff)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Exception (EXCEPTION, error)
 import Control.Monad.Error.Class (throwError, try)
 import Data.Maybe (Maybe(..))
-import Database.PostgreSQL (POSTGRESQL, PoolConfiguration, Query(..), Row0(..), Row1(..), Row2(..), Row6(..), execute, newPool, query, scalar, withConnection, withTransaction)
-import Prelude
+import Database.PostgreSQL (POSTGRESQL, Query(..), PoolConfiguration, execute, newPool, query, Row0(..), Row1(..), Row2(..), Row6(..), scalar, withConnection, withTransaction)
 import Test.Assert (ASSERT, assert)
 
 main :: ∀ eff. Eff (assert :: ASSERT, exception :: EXCEPTION, postgreSQL :: POSTGRESQL | eff) Unit
 main = void $ launchAff do
   pool <- newPool config
-  withConnection pool \conn -> do
+  withConnection pool \conn → do
     execute conn (Query """
-      CREATE TEMPORARY TABLE foods (
-        name text NOT NULL,
-        delicious boolean NOT NULL,
-        PRIMARY KEY (name)
-      )
+     CREATE TEMPORARY TABLE foods (
+       name text NOT NULL,
+       delicious boolean NOT NULL,
+       PRIMARY KEY (name)
+     )
     """) Row0
 
     execute conn (Query """
@@ -35,6 +36,7 @@ main = void $ launchAff do
       WHERE delicious
       ORDER BY name ASC
     """) Row0
+
     liftEff <<< assert $ names == [Row1 "pork", Row1 "rookworst"]
 
     testTransactionCommit conn
