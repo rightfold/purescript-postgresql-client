@@ -67,7 +67,8 @@ foreign import ffiNewPool
      . PoolConfiguration
     -> Eff (postgreSQL :: POSTGRESQL | eff) Pool
 
-
+-- | Run an action with a connection. The connection is released to the pool
+-- | when the action returns.
 withConnection
     :: ∀ eff a
      . Pool
@@ -81,8 +82,6 @@ withConnection p k =
 
 type PostgreSqlEff eff  = (postgreSQL :: POSTGRESQL | eff)
 
--- | Run an action with a connection. The connection is released to the pool
--- | when the action returns.
 connect
     :: ∀ eff
      . Pool
@@ -101,7 +100,6 @@ foreign import ffiConnect
       { connection :: Connection
       , done :: Eff (PostgreSqlEff eff) Unit
       }
-
 
 -- | Run an action within a transaction. The transaction is committed if the
 -- | action returns, and rolled back when the action throws. If you want to

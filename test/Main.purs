@@ -16,7 +16,7 @@ import Test.Assert (ASSERT, assert)
 main :: ∀ eff. Eff (assert :: ASSERT, exception :: EXCEPTION, postgreSQL :: POSTGRESQL | eff) Unit
 main = void $ launchAff do
   pool <- newPool config
-  withConnection pool \conn → do
+  withConnection pool \conn -> do
     execute conn (Query """
      CREATE TEMPORARY TABLE foods (
        name text NOT NULL,
