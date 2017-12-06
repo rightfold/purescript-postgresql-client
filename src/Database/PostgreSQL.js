@@ -13,7 +13,7 @@ exports.ffiConnect = function(pool) {
         return function(onSuccess) {
             return function() {
                 pool.connect(function(err, client, done) {
-                    if (err !== null) {
+                    if (err != null) {
                         onError(err)();
                         return;
                     }
@@ -35,7 +35,7 @@ exports.ffiUnsafeQuery = function(client) {
                             values: values,
                             rowMode: 'array',
                         }, function(err, result) {
-                            if (err !== null) {
+                            if (err != null) {
                                 onError(err)();
                                 return;
                             }
