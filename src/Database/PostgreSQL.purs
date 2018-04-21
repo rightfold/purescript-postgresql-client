@@ -15,11 +15,14 @@ module Database.PostgreSQL
 , unsafeQuery
 ) where
 
-import Control.Monad.Aff (Aff, makeAff)
+import Prelude
+
+import Control.Monad.Aff (Aff, bracket)
+import Control.Monad.Aff.Compat (EffFnAff, fromEffFnAff)
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Eff.Exception (Error, error)
-import Control.Monad.Error.Class (catchError, throwError, withResource)
+import Control.Monad.Eff.Exception (error)
+import Control.Monad.Error.Class (catchError, throwError)
 import Data.Array (head)
 import Data.Either (Either(..))
 import Data.Foreign (Foreign)
@@ -30,7 +33,6 @@ import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1
 import Database.PostgreSQL.Row as Row
 import Database.PostgreSQL.Value (class FromSQLValue)
 import Database.PostgreSQL.Value as Value
-import Prelude
 
 foreign import data POSTGRESQL :: Effect
 
@@ -73,20 +75,31 @@ withConnection
     -> (Connection -> Aff (postgreSQL :: POSTGRESQL | eff) a)
     -> Aff (postgreSQL :: POSTGRESQL | eff) a
 withConnection p k =
-  withResource (makeAff $ ffiConnect p)
-               (liftEff <<< _.done)
-               (k <<< _.connection)
+  bracket
+    (connect p)
+    (liftEff <<< _.done)
+    (k <<< _.connection)
 
-foreign import ffiConnect
+type PostgreSqlEff eff  = (postgreSQL :: POSTGRESQL | eff)
+
+connect
     :: ∀ eff
      . Pool
-    -> (Error -> Eff (postgreSQL :: POSTGRESQL | eff) Unit)
-    -> (    { connection :: Connection
-            , done :: Eff (postgreSQL :: POSTGRESQL | eff) Unit
-            }
-         -> Eff (postgreSQL :: POSTGRESQL | eff) Unit
-       )
-    -> Eff (postgreSQL :: POSTGRESQL | eff) Unit
+    -> Aff
+      (postgreSQL :: POSTGRESQL | eff)
+      { connection :: Connection
+      , done :: Eff (PostgreSqlEff eff) Unit
+      }
+connect = fromEffFnAff <<< ffiConnect
+
+foreign import ffiConnect
+  :: ∀ eff
+   . Pool
+  -> EffFnAff
+      (PostgreSqlEff eff)
+      { connection :: Connection
+      , done :: Eff (PostgreSqlEff eff) Unit
+      }
 
 -- | Run an action within a transaction. The transaction is committed if the
 -- | action returns, and rolled back when the action throws. If you want to
@@ -144,21 +157,19 @@ scalar conn sql values =
     <#> map (case _ of Row1 a -> a) <<< head
 
 unsafeQuery
-  :: ∀ eff
-   . Connection
-  -> String
-  -> Array Foreign
-  -> Aff (postgreSQL :: POSTGRESQL | eff) (Array (Array Foreign))
-unsafeQuery c s a = makeAff $ ffiUnsafeQuery c s a
+    :: ∀ eff
+     . Connection
+    -> String
+    -> Array Foreign
+    -> Aff (postgreSQL :: POSTGRESQL | eff) (Array (Array Foreign))
+unsafeQuery c s = fromEffFnAff <<< ffiUnsafeQuery c s
 
 foreign import ffiUnsafeQuery
     :: ∀ eff
      . Connection
     -> String
     -> Array Foreign
-    -> (Error -> Eff (postgreSQL :: POSTGRESQL | eff) Unit)
-    -> (Array (Array Foreign) -> Eff (postgreSQL :: POSTGRESQL | eff) Unit)
-    -> Eff (postgreSQL :: POSTGRESQL | eff) Unit
+    -> EffFnAff (postgreSQL :: POSTGRESQL | eff) (Array (Array Foreign))
 
 fromRight :: ∀ a b. Either a b -> Maybe b
 fromRight (Left _) = Nothing

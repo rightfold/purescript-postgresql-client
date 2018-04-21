@@ -8,18 +8,23 @@ exports.ffiNewPool = function(config) {
     };
 };
 
-exports.ffiConnect = function(pool) {
-    return function(onError) {
-        return function(onSuccess) {
-            return function() {
-                pool.connect(function(err, client, done) {
-                    if (err != null) {
-                        onError(err)();
-                        return;
+exports.ffiConnect = function (pool) {
+    return function (onError, onSuccess) {
+        var p = pool.connect(
+            ).then(function(client) {
+                onSuccess({
+                    connection: client,
+                    done: function() {
+                        return client.release();
                     }
-                    onSuccess({connection: client, done: done})();
                 });
-            };
+            }).catch(function(err) {
+                onError(err);
+            });
+
+        return function (cancelError, cancelerError, cancelerSuccess) {
+          p.cancel();
+          cancelerSuccess();
         };
     };
 };
@@ -27,21 +32,20 @@ exports.ffiConnect = function(pool) {
 exports.ffiUnsafeQuery = function(client) {
     return function(sql) {
         return function(values) {
-            return function(onError) {
-                return function(onSuccess) {
-                    return function() {
-                        client.query({
-                            text: sql,
-                            values: values,
-                            rowMode: 'array',
-                        }, function(err, result) {
-                            if (err != null) {
-                                onError(err)();
-                                return;
-                            }
-                            onSuccess(result.rows)();
-                        });
-                    };
+            return function(onError, onSuccess) {
+                var q = client.query({
+                        text: sql,
+                        values: values,
+                        rowMode: 'array',
+                    }).catch(function(err) {
+                        onError(err);
+                    }).then(function(result) {
+                        onSuccess(result.rows);
+                    });
+
+                return function (cancelError, cancelerError, cancelerSuccess) {
+                    q.cancel();
+                    cancelerSuccess();
                 };
             };
         };
