@@ -13,6 +13,9 @@ class ToSQLRow a where
 -- | Convert things from SQL rows.
 class FromSQLRow a where
     fromSQLRow :: Array Foreign -> Either String a
+    
+instance toSQLRowForeignArray :: ToSQLRow (Array Foreign) where
+  toSQLRow = id
 
 -- | A row with 0 fields.
 data Row0 = Row0
