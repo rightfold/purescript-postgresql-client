@@ -1,5 +1,7 @@
 module Database.PostgreSQL.Value where
 
+import Prelude
+
 import Control.Monad.Eff (kind Effect)
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except (runExcept)
@@ -7,13 +9,14 @@ import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.ByteString (ByteString)
 import Data.DateTime.Instant (Instant)
-import Data.Either (Either)
+import Data.Decimal (Decimal)
+import Data.Decimal as Decimal
+import Data.Either (Either, note)
 import Data.Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, toForeign, unsafeFromForeign)
 import Data.List (List)
 import Data.List as List
 import Data.Maybe (Maybe(..))
 import Data.Traversable (traverse)
-import Prelude
 
 -- | Convert things to SQL values.
 class ToSQLValue a where
@@ -89,6 +92,14 @@ instance toSQLValueForeign :: ToSQLValue Foreign where
 
 instance fromSQLValueForeign :: FromSQLValue Foreign where
     fromSQLValue = pure
+
+instance toSQLValueDecimal :: ToSQLValue Decimal where
+    toSQLValue = Decimal.toString >>> toForeign
+
+instance fromSQLValueDecimal :: FromSQLValue Decimal where
+    fromSQLValue v = do
+        s ← lmap show $ runExcept (readString v)
+        note ("Decimal literal parsing failed: " <> s) (Decimal.fromString s)
 
 foreign import null :: Foreign
 foreign import instantToString :: Instant -> Foreign
