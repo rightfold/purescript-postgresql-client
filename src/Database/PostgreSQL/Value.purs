@@ -8,14 +8,18 @@ import Control.Monad.Except (runExcept)
 import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.ByteString (ByteString)
+import Data.Date (Date, canonicalDate, day, month, year)
 import Data.DateTime.Instant (Instant, instant)
 import Data.Decimal (Decimal)
 import Data.Decimal as Decimal
 import Data.Either (Either(..), note)
+import Data.Enum (fromEnum, toEnum)
 import Data.Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, toForeign, unsafeFromForeign)
+import Data.Int (fromString)
 import Data.List (List)
 import Data.List as List
 import Data.Maybe (Maybe(..))
+import Data.String (Pattern(..), split)
 import Data.Time.Duration (Milliseconds(..))
 import Data.Traversable (traverse)
 
@@ -82,8 +86,32 @@ instance toSQLValueInstant :: ToSQLValue Instant where
 
 instance fromSQLValueInstant :: FromSQLValue Instant where
     fromSQLValue v = do
-      t ← instantFromString Left Right v
+      t <- instantFromString Left Right v
       note ("Instant construction failed for given timestamp: " <> show t) $ instant (Milliseconds t)
+
+instance toSQLValueDate :: ToSQLValue Date where
+    toSQLValue date =
+        let
+            y = fromEnum $ year date
+            m = fromEnum $ month date
+            d = fromEnum $ day date
+        in
+            toForeign $ show y <> "-" <> show m <> "-" <> show d
+
+instance fromSQLValueDate :: FromSQLValue Date where
+    fromSQLValue v = do
+        s <- lmap show $ runExcept (readString v)
+        let
+            msg = "Date parsing failed for value: " <> s
+        case split (Pattern "-") s of
+            [y, m, d] -> do
+                let
+                  result = canonicalDate
+                    <$> (toEnum =<< fromString y)
+                    <*> (toEnum =<< fromString m)
+                    <*> (toEnum =<< fromString d)
+                note msg result
+            _ -> Left msg
 
 instance toSQLValueMaybe :: (ToSQLValue a) => ToSQLValue (Maybe a) where
     toSQLValue Nothing = null
@@ -104,10 +132,10 @@ instance toSQLValueDecimal :: ToSQLValue Decimal where
 
 instance fromSQLValueDecimal :: FromSQLValue Decimal where
     fromSQLValue v = do
-        s ← lmap show $ runExcept (readString v)
+        s <- lmap show $ runExcept (readString v)
         note ("Decimal literal parsing failed: " <> s) (Decimal.fromString s)
 
 foreign import null :: Foreign
 foreign import instantToString :: Instant -> Foreign
-foreign import instantFromString :: (String → Either String Number) → (Number → Either String Number) → Foreign → Either String Number
+foreign import instantFromString :: (String -> Either String Number) -> (Number -> Either String Number) -> Foreign -> Either String Number
 foreign import unsafeIsBuffer :: ∀ a. a -> Boolean

@@ -12,19 +12,24 @@ import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Exception (EXCEPTION, error)
 import Control.Monad.Eff.Now (NOW)
 import Control.Monad.Error.Class (catchError, throwError, try)
+import Data.Array (zip)
+import Data.Date (Date, canonicalDate)
 import Data.DateTime.Instant (Instant, unInstant)
 import Data.Decimal as D
-import Data.Foldable (all)
+import Data.Enum (toEnum)
+import Data.Foldable (all, length)
 import Data.JSDate (toInstant)
 import Data.JSDate as JSDate
 import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
+import Data.Tuple (Tuple(..))
 import Database.PostgreSQL (Connection, POSTGRESQL, PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), execute, newPool, query, scalar, withConnection, withTransaction)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
 import Test.Assert (ASSERT, assert)
 import Test.Unit (suite)
 import Test.Unit as Test.Unit
+import Test.Unit.Assert (equal)
 import Test.Unit.Console (TESTOUTPUT)
 import Test.Unit.Main (runTest)
 
@@ -50,18 +55,32 @@ test conn t a = Test.Unit.test t (withRollback conn a)
 now :: ∀ eff.  Eff (now :: NOW | eff) Instant
 now = unsafePartial $ (fromJust <<< toInstant) <$> JSDate.now
 
-main :: ∀ eff. Eff (assert :: ASSERT, avar :: AVAR, console :: CONSOLE, exception :: EXCEPTION, now :: NOW, postgreSQL :: POSTGRESQL, testOutput :: TESTOUTPUT | eff) Unit
+main
+  :: ∀ eff
+   . Eff
+      ( assert :: ASSERT
+      , avar :: AVAR
+      , console :: CONSOLE
+      , exception :: EXCEPTION
+      , now :: NOW
+      , postgreSQL :: POSTGRESQL
+      , testOutput :: TESTOUTPUT | eff
+      )
+      Unit
 main = void $ launchAff do
   pool <- newPool config
   withConnection pool \conn -> do
     execute conn (Query """
-     CREATE TEMPORARY TABLE foods (
-       name text NOT NULL,
-       delicious boolean NOT NULL,
-       price NUMERIC(4,2) NOT NULL,
-       added TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-       PRIMARY KEY (name)
-     )
+      CREATE TEMPORARY TABLE foods (
+        name text NOT NULL,
+        delicious boolean NOT NULL,
+        price NUMERIC(4,2) NOT NULL,
+        added TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (name)
+      );
+      CREATE TEMPORARY TABLE dates (
+        date date NOT NULL
+      );
     """) Row0
 
     liftEff $ runTest $ do
@@ -115,7 +134,7 @@ main = void $ launchAff do
           """) Row0
           liftEff <<< assert $ names == [Row2 "pork" true, Row2 "rookworst" true]
 
-        test conn "select default instant value" $ do
+        test conn "handling instant value" $ do
           before <- liftEff $ (unwrap <<< unInstant) <$> now
           insertFood
           added <- query conn (Query """
@@ -131,7 +150,7 @@ main = void $ launchAff do
                 && after >= (unwrap $ unInstant t))
             added
 
-        test conn "select decimal" $ do
+        test conn "handling decimal value" $ do
           insertFood
           sauerkrautPrice <- query conn (Query """
             SELECT price
@@ -139,6 +158,27 @@ main = void $ launchAff do
             WHERE NOT delicious
           """) Row0
           liftEff <<< assert $ sauerkrautPrice == [Row1 (D.fromString "3.30")]
+
+        test conn "handling date value" $ do
+          let
+            date y m d =
+              canonicalDate <$> toEnum y <*>  toEnum m <*> toEnum d
+            d1 = unsafePartial $ fromJust $ date 2010 2 31
+            d2 = unsafePartial $ fromJust $ date 2017 2 1
+            d3 = unsafePartial $ fromJust $ date 2020 6 31
+
+          execute conn (Query """
+            INSERT INTO dates (date)
+            VALUES ($1), ($2), ($3)
+          """) (Row3 d1 d2 d3)
+
+          (dates :: Array (Row1 Date)) <- query conn (Query """
+            SELECT *
+            FROM dates
+            ORDER BY date ASC
+          """) Row0
+          equal 3 (length dates)
+          liftEff <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip dates [d1, d2, d3])
 
 
 config :: PoolConfiguration
