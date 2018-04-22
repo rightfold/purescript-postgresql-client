@@ -8,14 +8,15 @@ import Control.Monad.Except (runExcept)
 import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.ByteString (ByteString)
-import Data.DateTime.Instant (Instant)
+import Data.DateTime.Instant (Instant, instant)
 import Data.Decimal (Decimal)
 import Data.Decimal as Decimal
-import Data.Either (Either, note)
+import Data.Either (Either(..), note)
 import Data.Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, toForeign, unsafeFromForeign)
 import Data.List (List)
 import Data.List as List
 import Data.Maybe (Maybe(..))
+import Data.Time.Duration (Milliseconds(..))
 import Data.Traversable (traverse)
 
 -- | Convert things to SQL values.
@@ -79,6 +80,11 @@ instance fromSQLValueByteString :: FromSQLValue ByteString where
 instance toSQLValueInstant :: ToSQLValue Instant where
     toSQLValue = instantToString
 
+instance fromSQLValueInstant :: FromSQLValue Instant where
+    fromSQLValue v = do
+      t ← instantFromString Left Right v
+      note ("Instant construction failed for given timestamp: " <> show t) $ instant (Milliseconds t)
+
 instance toSQLValueMaybe :: (ToSQLValue a) => ToSQLValue (Maybe a) where
     toSQLValue Nothing = null
     toSQLValue (Just x) = toSQLValue x
@@ -103,4 +109,5 @@ instance fromSQLValueDecimal :: FromSQLValue Decimal where
 
 foreign import null :: Foreign
 foreign import instantToString :: Instant -> Foreign
+foreign import instantFromString :: (String → Either String Number) → (Number → Either String Number) → Foreign → Either String Number
 foreign import unsafeIsBuffer :: ∀ a. a -> Boolean
