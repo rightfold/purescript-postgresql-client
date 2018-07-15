@@ -2,7 +2,6 @@ module Database.PostgreSQL.Value where
 
 import Prelude
 
-import Control.Monad.Eff (kind Effect)
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except (runExcept)
 import Data.Array as Array
@@ -14,7 +13,7 @@ import Data.Decimal (Decimal)
 import Data.Decimal as Decimal
 import Data.Either (Either(..), note)
 import Data.Enum (fromEnum, toEnum)
-import Data.Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, toForeign, unsafeFromForeign)
+import Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, unsafeToForeign, unsafeFromForeign)
 import Data.Int (fromString)
 import Data.List (List)
 import Data.List as List
@@ -32,49 +31,49 @@ class FromSQLValue a where
     fromSQLValue :: Foreign -> Either String a
 
 instance toSQLValueBoolean :: ToSQLValue Boolean where
-    toSQLValue = toForeign
+    toSQLValue = unsafeToForeign
 
 instance fromSQLValueBoolean :: FromSQLValue Boolean where
     fromSQLValue = lmap show <<< runExcept <<< readBoolean
 
 instance toSQLValueChar :: ToSQLValue Char where
-    toSQLValue = toForeign
+    toSQLValue = unsafeToForeign
 
 instance fromSQLValueChar :: FromSQLValue Char where
     fromSQLValue = lmap show <<< runExcept <<< readChar
 
 instance toSQLValueInt :: ToSQLValue Int where
-    toSQLValue = toForeign
+    toSQLValue = unsafeToForeign
 
 instance fromSQLValueInt :: FromSQLValue Int where
     fromSQLValue = lmap show <<< runExcept <<< readInt
 
 instance toSQLValueNumber :: ToSQLValue Number where
-    toSQLValue = toForeign
+    toSQLValue = unsafeToForeign
 
 instance fromSQLValueNumber :: FromSQLValue Number where
     fromSQLValue = lmap show <<< runExcept <<< readNumber
 
 instance toSQLValueString :: ToSQLValue String where
-    toSQLValue = toForeign
+    toSQLValue = unsafeToForeign
 
 instance fromSQLValueString :: FromSQLValue String where
     fromSQLValue = lmap show <<< runExcept <<< readString
 
 instance toSQLValueArray :: (ToSQLValue a) => ToSQLValue (Array a) where
-    toSQLValue = toForeign <<< map toSQLValue
+    toSQLValue = unsafeToForeign <<< map toSQLValue
 
 instance fromSQLValueArray :: (FromSQLValue a) => FromSQLValue (Array a) where
     fromSQLValue = traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
 
 instance toSQLValueList :: (ToSQLValue a) => ToSQLValue (List a) where
-    toSQLValue = toForeign <<< Array.fromFoldable <<< map toSQLValue
+    toSQLValue = unsafeToForeign <<< Array.fromFoldable <<< map toSQLValue
 
 instance fromSQLValueList :: (FromSQLValue a) => FromSQLValue (List a) where
     fromSQLValue = map List.fromFoldable <<< traverse fromSQLValue <=< lmap show <<< runExcept <<< readArray
 
 instance toSQLValueByteString :: ToSQLValue ByteString where
-    toSQLValue = toForeign
+    toSQLValue = unsafeToForeign
 
 instance fromSQLValueByteString :: FromSQLValue ByteString where
     fromSQLValue x
@@ -96,7 +95,7 @@ instance toSQLValueDate :: ToSQLValue Date where
             m = fromEnum $ month date
             d = fromEnum $ day date
         in
-            toForeign $ show y <> "-" <> show m <> "-" <> show d
+            unsafeToForeign $ show y <> "-" <> show m <> "-" <> show d
 
 instance fromSQLValueDate :: FromSQLValue Date where
     fromSQLValue v = do
@@ -122,13 +121,13 @@ instance fromSQLValueMaybe :: (FromSQLValue a) => FromSQLValue (Maybe a) where
                    | otherwise = Just <$> fromSQLValue x
 
 instance toSQLValueForeign :: ToSQLValue Foreign where
-    toSQLValue = id
+    toSQLValue = identity
 
 instance fromSQLValueForeign :: FromSQLValue Foreign where
     fromSQLValue = pure
 
 instance toSQLValueDecimal :: ToSQLValue Decimal where
-    toSQLValue = Decimal.toString >>> toForeign
+    toSQLValue = Decimal.toString >>> unsafeToForeign
 
 instance fromSQLValueDecimal :: FromSQLValue Decimal where
     fromSQLValue v = do

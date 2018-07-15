@@ -1,7 +1,6 @@
 module Database.PostgreSQL
 ( module Row
 , module Value
-, POSTGRESQL
 , PoolConfiguration
 , Pool
 , Connection
@@ -17,24 +16,23 @@ module Database.PostgreSQL
 
 import Prelude
 
-import Control.Monad.Aff (Aff, bracket)
-import Control.Monad.Aff.Compat (EffFnAff, fromEffFnAff)
-import Control.Monad.Eff (kind Effect, Eff)
-import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Eff.Exception (error)
+import Effect.Aff (Aff, bracket)
+import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
+import Effect (Effect)
+import Effect.Class (liftEffect)
+import Effect.Exception (error)
 import Control.Monad.Error.Class (catchError, throwError)
 import Data.Array (head)
 import Data.Either (Either(..))
-import Data.Foreign (Foreign)
+import Foreign (Foreign)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Traversable (traverse)
 import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), fromSQLRow, toSQLRow)
-import Database.PostgreSQL.Row as Row
+import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), Row10(..), Row11(..), Row12(..), Row13(..), Row14(..), Row15(..), Row16(..), Row17(..), Row18(..), Row19(..), Row2(..), Row3(..), Row4(..), Row5(..), Row6(..), Row7(..), Row8(..), Row9(..), fromSQLRow, toSQLRow) as Row
 import Database.PostgreSQL.Value (class FromSQLValue)
-import Database.PostgreSQL.Value as Value
+import Database.PostgreSQL.Value (class FromSQLValue, class ToSQLValue, fromSQLValue, instantFromString, instantToString, null, toSQLValue, unsafeIsBuffer) as Value
 
-foreign import data POSTGRESQL :: Effect
 
 -- | PostgreSQL connection pool configuration.
 type PoolConfiguration =
@@ -59,46 +57,39 @@ newtype Query i o = Query String
 derive instance newtypeQuery :: Newtype (Query i o) _
 
 -- | Create a new connection pool.
-newPool :: ∀ eff. PoolConfiguration -> Aff (postgreSQL :: POSTGRESQL | eff) Pool
-newPool = liftEff <<< ffiNewPool
+newPool :: PoolConfiguration -> Aff Pool
+newPool = liftEffect <<< ffiNewPool
 
 foreign import ffiNewPool
-    :: ∀ eff
-     . PoolConfiguration
-    -> Eff (postgreSQL :: POSTGRESQL | eff) Pool
+    :: PoolConfiguration
+    -> Effect Pool
 
 -- | Run an action with a connection. The connection is released to the pool
 -- | when the action returns.
 withConnection
-    :: ∀ eff a
+    :: ∀ a
      . Pool
-    -> (Connection -> Aff (postgreSQL :: POSTGRESQL | eff) a)
-    -> Aff (postgreSQL :: POSTGRESQL | eff) a
+    -> (Connection -> Aff a)
+    -> Aff a
 withConnection p k =
   bracket
     (connect p)
-    (liftEff <<< _.done)
+    (liftEffect <<< _.done)
     (k <<< _.connection)
 
-type PostgreSqlEff eff  = (postgreSQL :: POSTGRESQL | eff)
-
 connect
-    :: ∀ eff
-     . Pool
+    :: Pool
     -> Aff
-      (postgreSQL :: POSTGRESQL | eff)
       { connection :: Connection
-      , done :: Eff (PostgreSqlEff eff) Unit
+      , done :: Effect Unit
       }
-connect = fromEffFnAff <<< ffiConnect
+connect = fromEffectFnAff <<< ffiConnect
 
 foreign import ffiConnect
-  :: ∀ eff
-   . Pool
-  -> EffFnAff
-      (PostgreSqlEff eff)
+  :: Pool
+  -> EffectFnAff
       { connection :: Connection
-      , done :: Eff (PostgreSqlEff eff) Unit
+      , done :: Effect Unit
       }
 
 -- | Run an action within a transaction. The transaction is committed if the
@@ -106,10 +97,10 @@ foreign import ffiConnect
 -- | change the transaction mode, issue a separate `SET TRANSACTION` statement
 -- | within the transaction.
 withTransaction
-    :: ∀ eff a
+    :: ∀ a
      . Connection
-    -> Aff (postgreSQL :: POSTGRESQL | eff) a
-    -> Aff (postgreSQL :: POSTGRESQL | eff) a
+    -> Aff a
+    -> Aff a
 withTransaction conn action =
     execute conn (Query "BEGIN TRANSACTION") Row0
     *> catchError (Right <$> action) (pure <<< Left) >>= case _ of
@@ -118,24 +109,24 @@ withTransaction conn action =
 
 -- | Execute a PostgreSQL query and discard its results.
 execute
-    :: ∀ i o eff
+    :: ∀ i o
      . (ToSQLRow i)
     => Connection
     -> Query i o
     -> i
-    -> Aff (postgreSQL :: POSTGRESQL | eff) Unit
+    -> Aff Unit
 execute conn (Query sql) values =
     void $ unsafeQuery conn sql (toSQLRow values)
 
 -- | Execute a PostgreSQL query and return its results.
 query
-    :: ∀ i o eff
+    :: ∀ i o
      . ToSQLRow i
     => FromSQLRow o
     => Connection
     -> Query i o
     -> i
-    -> Aff (postgreSQL :: POSTGRESQL | eff) (Array o)
+    -> Aff (Array o)
 query conn (Query sql) values =
     unsafeQuery conn sql (toSQLRow values)
     >>= traverse (fromSQLRow >>> case _ of
@@ -145,31 +136,29 @@ query conn (Query sql) values =
 -- | Execute a PostgreSQL query and return the first field of the first row in
 -- | the result.
 scalar
-    :: ∀ i o eff
+    :: ∀ i o
      . ToSQLRow i
     => FromSQLValue o
     => Connection
     -> Query i (Row1 o)
     -> i
-    -> Aff (postgreSQL :: POSTGRESQL | eff) (Maybe o)
+    -> Aff (Maybe o)
 scalar conn sql values =
     query conn sql values
     <#> map (case _ of Row1 a -> a) <<< head
 
 unsafeQuery
-    :: ∀ eff
-     . Connection
+    :: Connection
     -> String
     -> Array Foreign
-    -> Aff (postgreSQL :: POSTGRESQL | eff) (Array (Array Foreign))
-unsafeQuery c s = fromEffFnAff <<< ffiUnsafeQuery c s
+    -> Aff (Array (Array Foreign))
+unsafeQuery c s = fromEffectFnAff <<< ffiUnsafeQuery c s
 
 foreign import ffiUnsafeQuery
-    :: ∀ eff
-     . Connection
+    :: Connection
     -> String
     -> Array Foreign
-    -> EffFnAff (postgreSQL :: POSTGRESQL | eff) (Array (Array Foreign))
+    -> EffectFnAff (Array (Array Foreign))
 
 fromRight :: ∀ a b. Either a b -> Maybe b
 fromRight (Left _) = Nothing
