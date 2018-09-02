@@ -2,32 +2,32 @@
   "name": "purescript-postgresql-client",
   "license": "BSD-3-Clause",
   "dependencies": {
-    "purescript-prelude": "^3.0.0",
-    "purescript-transformers": "^3.2.0",
-    "purescript-lists": "^4.0.1",
-    "purescript-foreign": "^4.0.0",
-    "purescript-aff": "^4.0.0",
-    "purescript-either": "^3.0.0",
-    "purescript-maybe": "^3.0.0",
-    "purescript-foldable-traversable": "^3.0.0",
-    "purescript-newtype": "^2.0.0",
-    "purescript-bytestrings": "^5.0.1",
-    "purescript-arrays": "^4.0.1",
-    "purescript-datetime": "^3.0.0",
-    "purescript-bifunctors": "^3.0.0",
-    "purescript-eff": "^3.1.0",
-    "purescript-exceptions": "^3.0.0",
-    "purescript-decimals": "^3.4.0",
-    "purescript-js-date": "^5.2.0"
+    "purescript-prelude": "^4.0.1",
+    "purescript-transformers": "^4.1.0",
+    "purescript-lists": "^5.0.0",
+    "purescript-foreign": "^5.0.0",
+    "purescript-aff": "^5.0.1",
+    "purescript-either": "^4.0.0",
+    "purescript-maybe": "^4.0.0",
+    "purescript-foldable-traversable": "^4.0.0",
+    "purescript-newtype": "^3.0.0",
+    "purescript-bytestrings": "adamczykm/purescript-bytestrings#7.0.0",
+    "purescript-arrays": "^5.0.0",
+    "purescript-datetime": "^4.0.0",
+    "purescript-bifunctors": "^4.0.0",
+    "purescript-effect": "^2.0.0",
+    "purescript-exceptions": "^4.0.0",
+    "purescript-decimals": "^4.0.0",
+    "purescript-js-date": "^6.0.0"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/rightfold/purescript-postgresql-client.git"
   },
   "devDependencies": {
-    "purescript-assert": "^3.0.0",
-    "purescript-eff": "^3.1.0",
-    "purescript-debug": "^3.0.0",
-    "purescript-test-unit": "^13.0.0"
+    "purescript-assert": "^4.0.0",
+    "purescript-effect": "^2.0.0",
+    "purescript-debug": "^4.0.0",
+    "purescript-test-unit": "^14.0.0"
   }
 }
