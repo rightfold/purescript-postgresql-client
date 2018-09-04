@@ -4,14 +4,8 @@ module Test.Main
 
 import Prelude
 
-import Control.Monad.Aff (Aff, launchAff)
-import Control.Monad.Aff.AVar (AVAR)
-import Control.Monad.Aff.Console (CONSOLE)
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Eff.Exception (EXCEPTION, error)
-import Control.Monad.Eff.Now (NOW)
 import Control.Monad.Error.Class (catchError, throwError, try)
+import Control.Monad.Free (Free)
 import Data.Array (zip)
 import Data.Date (Date, canonicalDate)
 import Data.DateTime.Instant (Instant, unInstant)
@@ -23,21 +17,23 @@ import Data.JSDate as JSDate
 import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
-import Database.PostgreSQL (Connection, POSTGRESQL, PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), execute, newPool, query, scalar, withConnection, withTransaction)
+import Database.PostgreSQL (Connection, PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), execute, newPool, query, scalar, withConnection, withTransaction)
+import Effect (Effect)
+import Effect.Aff (Aff, error, launchAff)
+import Effect.Class (liftEffect)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
-import Test.Assert (ASSERT, assert)
-import Test.Unit (suite)
+import Test.Assert (assert)
+import Test.Unit (TestF, suite)
 import Test.Unit as Test.Unit
 import Test.Unit.Assert (equal)
-import Test.Unit.Console (TESTOUTPUT)
 import Test.Unit.Main (runTest)
 
 withRollback
-  :: ∀ eff
-   .  Connection
-  -> Aff (postgreSQL :: POSTGRESQL | eff) Unit
-  -> Aff (postgreSQL :: POSTGRESQL | eff) Unit
+  ∷ ∀ a
+  . Connection 
+  → Aff a
+  → Aff Unit
 withRollback conn action = do
   execute conn (Query "BEGIN TRANSACTION") Row0
   catchError (action >>= const rollback) (\e -> rollback >>= const (throwError e))
@@ -45,28 +41,17 @@ withRollback conn action = do
   rollback = execute conn (Query "ROLLBACK") Row0
 
 test
-  :: ∀ eff
+  ∷ ∀ a
    . Connection
-  -> String
-  -> Aff ( postgreSQL :: POSTGRESQL | eff) Unit
-  -> Test.Unit.TestSuite (postgreSQL :: POSTGRESQL | eff)
+  → String
+  → Aff a
+  → Free TestF Unit
 test conn t a = Test.Unit.test t (withRollback conn a)
 
-now :: ∀ eff.  Eff (now :: NOW | eff) Instant
+now ∷ Effect Instant
 now = unsafePartial $ (fromJust <<< toInstant) <$> JSDate.now
 
-main
-  :: ∀ eff
-   . Eff
-      ( assert :: ASSERT
-      , avar :: AVAR
-      , console :: CONSOLE
-      , exception :: EXCEPTION
-      , now :: NOW
-      , postgreSQL :: POSTGRESQL
-      , testOutput :: TESTOUTPUT | eff
-      )
-      Unit
+main ∷ Effect Unit
 main = void $ launchAff do
   pool <- newPool config
   withConnection pool \conn -> do
@@ -83,7 +68,7 @@ main = void $ launchAff do
       );
     """) Row0
 
-    liftEff $ runTest $ do
+    liftEffect $ runTest $ do
       suite "Postgresql client" $ do
         let
           testCount n = do
@@ -91,7 +76,7 @@ main = void $ launchAff do
               SELECT count(*) = $1
               FROM foods
             """) (Row1 n)
-            liftEff <<< assert $ count == Just true
+            liftEffect <<< assert $ count == Just true
 
         Test.Unit.test "transaction commit" $ do
           withTransaction conn do
@@ -132,19 +117,19 @@ main = void $ launchAff do
             WHERE delicious
             ORDER BY name ASC
           """) Row0
-          liftEff <<< assert $ names == [Row2 "pork" true, Row2 "rookworst" true]
+          liftEffect <<< assert $ names == [Row2 "pork" true, Row2 "rookworst" true]
 
         test conn "handling instant value" $ do
-          before <- liftEff $ (unwrap <<< unInstant) <$> now
+          before <- liftEffect $ (unwrap <<< unInstant) <$> now
           insertFood
           added <- query conn (Query """
             SELECT added
             FROM foods
           """) Row0
-          after <- liftEff $ (unwrap <<< unInstant) <$> now
+          after <- liftEffect $ (unwrap <<< unInstant) <$> now
           -- | timestamps are fetched without milliseconds so we have to
           -- | round before value down
-          liftEff <<< assert $ all
+          liftEffect <<< assert $ all
             (\(Row1 t) ->
               ( unwrap $ unInstant t) >= (before - before % 1000.0)
                 && after >= (unwrap $ unInstant t))
@@ -157,7 +142,7 @@ main = void $ launchAff do
             FROM foods
             WHERE NOT delicious
           """) Row0
-          liftEff <<< assert $ sauerkrautPrice == [Row1 (D.fromString "3.30")]
+          liftEffect <<< assert $ sauerkrautPrice == [Row1 (D.fromString "3.30")]
 
         test conn "handling date value" $ do
           let
@@ -178,7 +163,7 @@ main = void $ launchAff do
             ORDER BY date ASC
           """) Row0
           equal 3 (length dates)
-          liftEff <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip dates [d1, d2, d3])
+          liftEffect <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip dates [d1, d2, d3])
 
 
 config :: PoolConfiguration
