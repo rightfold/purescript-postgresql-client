@@ -8,14 +8,16 @@ import Control.Monad.Error.Class (catchError, throwError, try)
 import Control.Monad.Free (Free)
 import Data.Array (zip)
 import Data.Date (Date, canonicalDate)
+import Data.DateTime (DateTime(..))
 import Data.DateTime.Instant (Instant, unInstant)
 import Data.Decimal as D
 import Data.Enum (toEnum)
 import Data.Foldable (all, length)
-import Data.JSDate (toInstant)
+import Data.JSDate (JSDate, fromDateTime, toInstant)
 import Data.JSDate as JSDate
 import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
+import Data.Time (Time(..))
 import Data.Tuple (Tuple(..))
 import Database.PostgreSQL (Connection, PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), execute, newPool, query, scalar, withConnection, withTransaction)
 import Effect (Effect)
@@ -51,6 +53,12 @@ test conn t a = Test.Unit.test t (withRollback conn a)
 now ∷ Effect Instant
 now = unsafePartial $ (fromJust <<< toInstant) <$> JSDate.now
 
+date ∷ Int → Int → Int → Date
+date y m d = unsafePartial $ fromJust $ canonicalDate <$> toEnum y <*> toEnum m <*> toEnum d
+
+time ∷ Int → Int → Int → Int → Time
+time h m s ms = unsafePartial $ fromJust $ Time <$> toEnum h <*> toEnum m <*> toEnum s <*> toEnum ms
+
 main ∷ Effect Unit
 main = void $ launchAff do
   pool <- newPool config
@@ -65,6 +73,9 @@ main = void $ launchAff do
       );
       CREATE TEMPORARY TABLE dates (
         date date NOT NULL
+      );
+      CREATE TEMPORARY TABLE timestamps (
+        timestamp timestamptz NOT NULL
       );
     """) Row0
 
@@ -146,11 +157,9 @@ main = void $ launchAff do
 
         test conn "handling date value" $ do
           let
-            date y m d =
-              canonicalDate <$> toEnum y <*>  toEnum m <*> toEnum d
-            d1 = unsafePartial $ fromJust $ date 2010 2 31
-            d2 = unsafePartial $ fromJust $ date 2017 2 1
-            d3 = unsafePartial $ fromJust $ date 2020 6 31
+            d1 = date 2010 2 31
+            d2 = date 2017 2 1
+            d3 = date 2020 6 31
 
           execute conn (Query """
             INSERT INTO dates (date)
@@ -165,6 +174,24 @@ main = void $ launchAff do
           equal 3 (length dates)
           liftEffect <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip dates [d1, d2, d3])
 
+        test conn "handling jsdate value" $ do
+          let
+            jsd1 = fromDateTime $ DateTime (date 2010 2 31) (time 6 23 1 123)
+            jsd2 = fromDateTime $ DateTime (date 2017 2 1) (time 12 59 42 999)
+            jsd3 = fromDateTime $ DateTime (date 2020 6 31) (time 23 3 59 333)
+
+          execute conn (Query """
+            INSERT INTO timestamps (timestamp)
+            VALUES ($1), ($2), ($3)
+          """) (Row3 jsd1 jsd2 jsd3)
+
+          (timestamps :: Array (Row1 JSDate)) <- query conn (Query """
+            SELECT *
+            FROM timestamps
+            ORDER BY timestamp ASC
+          """) Row0
+          equal 3 (length timestamps)
+          liftEffect <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip timestamps [jsd1, jsd2, jsd3])
 
 config :: PoolConfiguration
 config =
