@@ -8,16 +8,14 @@ import Control.Monad.Error.Class (catchError, throwError, try)
 import Control.Monad.Free (Free)
 import Data.Array (zip)
 import Data.Date (Date, canonicalDate)
-import Data.DateTime (DateTime(..))
 import Data.DateTime.Instant (Instant, unInstant)
 import Data.Decimal as D
 import Data.Enum (toEnum)
 import Data.Foldable (all, length)
-import Data.JSDate (JSDate, fromDateTime, toInstant)
+import Data.JSDate (JSDate, jsdate, toInstant)
 import Data.JSDate as JSDate
 import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
-import Data.Time (Time(..))
 import Data.Tuple (Tuple(..))
 import Database.PostgreSQL (Connection, PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), execute, newPool, query, scalar, withConnection, withTransaction)
 import Effect (Effect)
@@ -56,8 +54,9 @@ now = unsafePartial $ (fromJust <<< toInstant) <$> JSDate.now
 date ∷ Int → Int → Int → Date
 date y m d = unsafePartial $ fromJust $ canonicalDate <$> toEnum y <*> toEnum m <*> toEnum d
 
-time ∷ Int → Int → Int → Int → Time
-time h m s ms = unsafePartial $ fromJust $ Time <$> toEnum h <*> toEnum m <*> toEnum s <*> toEnum ms
+jsdate_ ∷ Number → Number → Number → Number → Number → Number → Number → JSDate
+jsdate_ year month day hour minute second millisecond =
+  jsdate { year, month, day, hour, minute, second, millisecond }
 
 main ∷ Effect Unit
 main = void $ launchAff do
@@ -176,9 +175,9 @@ main = void $ launchAff do
 
         test conn "handling jsdate value" $ do
           let
-            jsd1 = fromDateTime $ DateTime (date 2010 2 31) (time 6 23 1 123)
-            jsd2 = fromDateTime $ DateTime (date 2017 2 1) (time 12 59 42 999)
-            jsd3 = fromDateTime $ DateTime (date 2020 6 31) (time 23 3 59 333)
+            jsd1 = jsdate_ 2010.0 2.0 31.0 6.0 23.0 1.0 123.0
+            jsd2 = jsdate_ 2017.0 2.0 1.0 12.0 59.0 42.0 999.0
+            jsd3 = jsdate_ 2020.0 6.0 31.0 23.0 3.0 59.0 333.0
 
           execute conn (Query """
             INSERT INTO timestamps (timestamp)
