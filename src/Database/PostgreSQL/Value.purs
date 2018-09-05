@@ -13,14 +13,16 @@ import Data.Decimal (Decimal)
 import Data.Decimal as Decimal
 import Data.Either (Either(..), note)
 import Data.Enum (fromEnum, toEnum)
-import Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, unsafeToForeign, unsafeFromForeign)
 import Data.Int (fromString)
+import Data.JSDate (JSDate)
 import Data.List (List)
 import Data.List as List
 import Data.Maybe (Maybe(..))
 import Data.String (Pattern(..), split)
+import Data.Time (Time(..))
 import Data.Time.Duration (Milliseconds(..))
 import Data.Traversable (traverse)
+import Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, unsafeToForeign, unsafeFromForeign)
 
 -- | Convert things to SQL values.
 class ToSQLValue a where
@@ -111,6 +113,12 @@ instance fromSQLValueDate :: FromSQLValue Date where
                     <*> (toEnum =<< fromString d)
                 note msg result
             _ -> Left msg
+
+instance toSQLValueJSDate :: ToSQLValue JSDate where
+    toSQLValue = unsafeToForeign
+
+instance fromSQLValueJSDate :: FromSQLValue JSDate where
+    fromSQLValue = Right <<< unsafeFromForeign
 
 instance toSQLValueMaybe :: (ToSQLValue a) => ToSQLValue (Maybe a) where
     toSQLValue Nothing = null

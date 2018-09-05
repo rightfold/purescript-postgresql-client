@@ -12,7 +12,7 @@ import Data.DateTime.Instant (Instant, unInstant)
 import Data.Decimal as D
 import Data.Enum (toEnum)
 import Data.Foldable (all, length)
-import Data.JSDate (toInstant)
+import Data.JSDate (JSDate, jsdate, toInstant)
 import Data.JSDate as JSDate
 import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
@@ -51,6 +51,13 @@ test conn t a = Test.Unit.test t (withRollback conn a)
 now ∷ Effect Instant
 now = unsafePartial $ (fromJust <<< toInstant) <$> JSDate.now
 
+date ∷ Int → Int → Int → Date
+date y m d = unsafePartial $ fromJust $ canonicalDate <$> toEnum y <*> toEnum m <*> toEnum d
+
+jsdate_ ∷ Number → Number → Number → Number → Number → Number → Number → JSDate
+jsdate_ year month day hour minute second millisecond =
+  jsdate { year, month, day, hour, minute, second, millisecond }
+
 main ∷ Effect Unit
 main = void $ launchAff do
   pool <- newPool config
@@ -65,6 +72,9 @@ main = void $ launchAff do
       );
       CREATE TEMPORARY TABLE dates (
         date date NOT NULL
+      );
+      CREATE TEMPORARY TABLE timestamps (
+        timestamp timestamptz NOT NULL
       );
     """) Row0
 
@@ -146,11 +156,9 @@ main = void $ launchAff do
 
         test conn "handling date value" $ do
           let
-            date y m d =
-              canonicalDate <$> toEnum y <*>  toEnum m <*> toEnum d
-            d1 = unsafePartial $ fromJust $ date 2010 2 31
-            d2 = unsafePartial $ fromJust $ date 2017 2 1
-            d3 = unsafePartial $ fromJust $ date 2020 6 31
+            d1 = date 2010 2 31
+            d2 = date 2017 2 1
+            d3 = date 2020 6 31
 
           execute conn (Query """
             INSERT INTO dates (date)
@@ -165,6 +173,24 @@ main = void $ launchAff do
           equal 3 (length dates)
           liftEffect <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip dates [d1, d2, d3])
 
+        test conn "handling jsdate value" $ do
+          let
+            jsd1 = jsdate_ 2010.0 2.0 31.0 6.0 23.0 1.0 123.0
+            jsd2 = jsdate_ 2017.0 2.0 1.0 12.0 59.0 42.0 999.0
+            jsd3 = jsdate_ 2020.0 6.0 31.0 23.0 3.0 59.0 333.0
+
+          execute conn (Query """
+            INSERT INTO timestamps (timestamp)
+            VALUES ($1), ($2), ($3)
+          """) (Row3 jsd1 jsd2 jsd3)
+
+          (timestamps :: Array (Row1 JSDate)) <- query conn (Query """
+            SELECT *
+            FROM timestamps
+            ORDER BY timestamp ASC
+          """) Row0
+          equal 3 (length timestamps)
+          liftEffect <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip timestamps [jsd1, jsd2, jsd3])
 
 config :: PoolConfiguration
 config =
