@@ -21,6 +21,8 @@ import Database.PostgreSQL (Connection, PoolConfiguration, Query(Query), Row0(Ro
 import Effect (Effect)
 import Effect.Aff (Aff, error, launchAff)
 import Effect.Class (liftEffect)
+import Effect.Console (logShow)
+import Foreign.Object (Object, fromFoldable)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
 import Test.Assert (assert)
@@ -75,6 +77,10 @@ main = void $ launchAff do
       );
       CREATE TEMPORARY TABLE timestamps (
         timestamp timestamptz NOT NULL
+      );
+      CREATE TEMPORARY TABLE jsons (
+        json json NOT NULL,
+        jsonb jsonb NOT NULL
       );
     """) Row0
 
@@ -172,6 +178,18 @@ main = void $ launchAff do
           """) Row0
           equal 3 (length dates)
           liftEffect <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip dates [d1, d2, d3])
+
+        test conn "handling json and jsonb value" $ do
+          let jsonIn = fromFoldable [Tuple "a" 1, Tuple "a" 2, Tuple "2" 3]
+          let expected = fromFoldable [Tuple "a" 2, Tuple "2" 3]
+
+          execute conn (Query """
+            INSERT INTO jsons (json, jsonb)
+            VALUES ($1, $2)
+          """) (Row2 jsonIn jsonIn)
+
+          (js ∷ Array (Row2 (Object Int) (Object Int))) <- query conn (Query """SELECT * FROM JSONS""") Row0
+          liftEffect $ assert $ all (\(Row2 j1 j2) → j1 == expected && expected == j2) js
 
         test conn "handling jsdate value" $ do
           let

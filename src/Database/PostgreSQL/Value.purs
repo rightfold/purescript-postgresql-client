@@ -3,7 +3,8 @@ module Database.PostgreSQL.Value where
 import Prelude
 
 import Control.Monad.Error.Class (throwError)
-import Control.Monad.Except (runExcept)
+import Control.Monad.Except (ExceptT, except, runExcept, runExceptT)
+import Data.Array (foldl)
 import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.ByteString (ByteString)
@@ -13,16 +14,20 @@ import Data.Decimal (Decimal)
 import Data.Decimal as Decimal
 import Data.Either (Either(..), note)
 import Data.Enum (fromEnum, toEnum)
+import Data.Identity (Identity)
 import Data.Int (fromString)
 import Data.JSDate (JSDate)
 import Data.List (List)
 import Data.List as List
+import Data.List.NonEmpty (singleton)
 import Data.Maybe (Maybe(..))
+import Data.Newtype (unwrap)
 import Data.String (Pattern(..), split)
-import Data.Time (Time(..))
 import Data.Time.Duration (Milliseconds(..))
-import Data.Traversable (traverse)
-import Foreign (Foreign, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, unsafeToForeign, unsafeFromForeign)
+import Data.Traversable (sequence, traverse)
+import Foreign (Foreign, ForeignError(..), MultipleErrors, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, renderForeignError, unsafeFromForeign, unsafeToForeign)
+import Foreign.Internal (readObject)
+import Foreign.Object (Object)
 
 -- | Convert things to SQL values.
 class ToSQLValue a where
@@ -133,6 +138,21 @@ instance toSQLValueForeign :: ToSQLValue Foreign where
 
 instance fromSQLValueForeign :: FromSQLValue Foreign where
     fromSQLValue = pure
+
+instance toSQLValueObject ∷ ToSQLValue a ⇒ ToSQLValue (Object a) where
+  toSQLValue = unsafeToForeign
+
+instance fromSQLValueObject ∷ FromSQLValue a ⇒ FromSQLValue (Object a) where
+  fromSQLValue sql = lmap showErr $ unwrap $ runExceptT main
+    where
+    showErr ∷ MultipleErrors → String
+    showErr e = foldl (\a x → a <> renderForeignError x <> " ") "" e
+    main ∷ ExceptT MultipleErrors Identity (Object a)
+    main = do
+      objF ∷ Object Foreign <- readObject sql
+      let eso = sequence $ map fromSQLValue objF
+      let emo = lmap (singleton <<< ForeignError) eso
+      except emo
 
 instance toSQLValueDecimal :: ToSQLValue Decimal where
     toSQLValue = Decimal.toString >>> unsafeToForeign
