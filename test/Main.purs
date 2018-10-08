@@ -18,11 +18,10 @@ import Data.JSDate as JSDate
 import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
-import Database.PostgreSQL (Connection, PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), execute, newPool, query, scalar, withConnection, withTransaction)
+import Database.PostgreSQL (Connection, PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), command, execute, newPool, query, scalar, withConnection, withTransaction)
 import Effect (Effect)
 import Effect.Aff (Aff, error, launchAff)
 import Effect.Class (liftEffect)
-import Effect.Console (logShow)
 import Foreign.Object (Object, fromFoldable)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
@@ -144,6 +143,14 @@ main = void $ launchAff do
             RETURNING name, delicious
           """) Row0
           liftEffect <<< assert $ deleted == [Row2 "pork" true, Row2 "rookworst" true]
+
+        test conn "delete returning command tag value" $ do
+          insertFood
+          deleted <- command conn (Query """
+            DELETE FROM foods
+            WHERE delicious
+          """) Row0
+          liftEffect <<< assert $ deleted == 2
 
         test conn "handling instant value" $ do
           before <- liftEffect $ (unwrap <<< unInstant) <$> now
