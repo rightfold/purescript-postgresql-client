@@ -135,7 +135,7 @@ main = void $ launchAff do
           """) Row0
           liftEffect <<< assert $ names == [Row2 "pork" true, Row2 "rookworst" true]
 
-        test conn "delete column subset" $ do
+        test conn "delete returning columns subset" $ do
           insertFood
           deleted <- query conn (Query """
             DELETE FROM foods
