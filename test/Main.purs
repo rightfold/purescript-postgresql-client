@@ -33,7 +33,7 @@ import Test.Unit.Main (runTest)
 
 withRollback
   ∷ ∀ a
-  . Connection 
+  . Connection
   → Aff a
   → Aff Unit
 withRollback conn action = do
@@ -134,6 +134,15 @@ main = void $ launchAff do
             ORDER BY name ASC
           """) Row0
           liftEffect <<< assert $ names == [Row2 "pork" true, Row2 "rookworst" true]
+
+        test conn "delete column subset" $ do
+          insertFood
+          deleted <- query conn (Query """
+            DELETE FROM foods
+            WHERE delicious
+            RETURNING name, delicious
+          """) Row0
+          liftEffect <<< assert $ deleted == [Row2 "pork" true, Row2 "rookworst" true]
 
         test conn "handling instant value" $ do
           before <- liftEffect $ (unwrap <<< unInstant) <$> now
