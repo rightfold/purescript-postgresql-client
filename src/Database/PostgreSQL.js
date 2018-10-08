@@ -51,3 +51,26 @@ exports.ffiUnsafeQuery = function(client) {
         };
     };
 };
+
+exports.ffiUnsafeCommand = function(client) {
+    return function(sql) {
+        return function(values) {
+            return function(onError, onSuccess) {
+                var q = client.query({
+                        text: sql,
+                        values: values,
+                        rowMode: 'array',
+                    }).catch(function(err) {
+                        onError(err);
+                    }).then(function(result) {
+                        onSuccess(result.rowCount);
+                    });
+
+                return function (cancelError, cancelerError, cancelerSuccess) {
+                    q.cancel();
+                    cancelerSuccess();
+                };
+            };
+        };
+    };
+};

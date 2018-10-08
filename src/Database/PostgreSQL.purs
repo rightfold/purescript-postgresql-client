@@ -8,6 +8,7 @@ module Database.PostgreSQL
 , newPool
 , withConnection
 , withTransaction
+, command
 , execute
 , query
 , scalar
@@ -25,7 +26,7 @@ import Control.Monad.Error.Class (catchError, throwError)
 import Data.Array (head)
 import Data.Either (Either(..))
 import Foreign (Foreign)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype)
 import Data.Traversable (traverse)
 import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), fromSQLRow, toSQLRow)
@@ -160,6 +161,26 @@ foreign import ffiUnsafeQuery
     -> Array Foreign
     -> EffectFnAff (Array (Array Foreign))
 
-fromRight :: ∀ a b. Either a b -> Maybe b
-fromRight (Left _) = Nothing
-fromRight (Right a) = Just a
+-- | Execute a PostgreSQL query and return its command tag value.
+command
+    :: ∀ i
+     . ToSQLRow i
+    => Connection
+    -> Query i Int
+    -> i
+    -> Aff Int
+command conn (Query sql) values =
+    unsafeCommand conn sql (toSQLRow values)
+
+unsafeCommand
+    :: Connection
+    -> String
+    -> Array Foreign
+    -> Aff Int
+unsafeCommand c s = fromEffectFnAff <<< ffiUnsafeCommand c s
+
+foreign import ffiUnsafeCommand
+    :: Connection
+    -> String
+    -> Array Foreign
+    -> EffectFnAff Int
