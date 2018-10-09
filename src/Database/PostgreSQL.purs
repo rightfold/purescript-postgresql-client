@@ -161,7 +161,9 @@ foreign import ffiUnsafeQuery
     -> Array Foreign
     -> EffectFnAff (Array (Array Foreign))
 
--- | Execute a PostgreSQL query and return its command tag value.
+-- | Execute a PostgreSQL query and return its command tag value
+-- | (how many rows were affected by the query). This may be useful
+-- | for example with DELETE or UPDATE queries.
 command
     :: ∀ i
      . ToSQLRow i
