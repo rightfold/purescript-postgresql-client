@@ -37,10 +37,10 @@ exports.ffiUnsafeQuery = function(client) {
                         text: sql,
                         values: values,
                         rowMode: 'array',
-                    }).catch(function(err) {
-                        onError(err);
                     }).then(function(result) {
                         onSuccess(result.rows);
+                    }).catch(function(err) {
+                        onError(err);
                     });
 
                 return function (cancelError, cancelerError, cancelerSuccess) {
