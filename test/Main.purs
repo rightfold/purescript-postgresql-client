@@ -10,6 +10,7 @@ import Data.Array (zip)
 import Data.Date (Date, canonicalDate)
 import Data.DateTime.Instant (Instant, unInstant)
 import Data.Decimal as D
+import Data.Either (isLeft)
 import Data.Enum (toEnum)
 import Data.Foldable (all, length)
 import Data.JSDate (JSDate, jsdate, toInstant)
@@ -168,6 +169,15 @@ main = void $ launchAff do
             WHERE NOT delicious
           """) Row0
           liftEffect <<< assert $ sauerkrautPrice == [Row1 (D.fromString "3.30")]
+
+        test conn "constraint failure" $ do
+          withTransaction conn $ do
+            result <- try $ execute conn (Query """
+              INSERT INTO foods (name)
+              VALUES ($1)
+            """) (Row1 "pork")
+            liftEffect <<< assert $ isLeft result
+          testCount 0
 
         test conn "handling date value" $ do
           let
