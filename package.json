@@ -10,5 +10,9 @@
   },
   "devDependencies": {
     "literate-purescript": "^0.1.2"
+  },
+  "scripts": {
+    "pretest": "litps compile --file README.md; mv README.purs test/Example.purs",
+    "test": "pulp test"
   }
 }

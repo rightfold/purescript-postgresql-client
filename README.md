@@ -49,7 +49,6 @@ We can now create our temporary table which we are going to query in this exampl
 `execute` ignores result value which is what we want in this case.
 The last `Row0` value indicates that this `Query` doesn't take any additional parameters.
 
-
 ```purescript
 
     execute conn (Query """
@@ -64,28 +63,25 @@ The last `Row0` value indicates that this `Query` doesn't take any additional pa
 ```
 
 There is `withTransaction` helper provided. You can wrap the whole
-interaction with database in it. It will rollback if any exception
-is thrown during execution of given `Aff` block. It commits in the other case.
-
+piece of interaction with database in it. It will rollback if any exception
+is thrown during execution of a given `Aff` block. It excecutes `COMMIT`
+in the other case.
+We start our session with insert of some data. It is done by `execute`
+function with `INSERT` statement.
+Please notice that we are passing a tuple of the arguments to this query
+using dedicated constructor. In this case `Row3`.  This library provides types
+from `Row0` to `Row19` and they are wrappers which provide instances for
+automatic conversions from and to SQL values.
+For details please check following classes `ToSQLRow`, `ToSQLValue`,
+`FromSQLRow` and `FromSQLValue`.
 
 ```purescript
     withTransaction conn $ do
-```
-
-Now we can insert some data calling `execute` function with `INSERT` statement.
-Please notice that we are passing a tuple of arguments to this query
-using dedicated constructor. In this case `Row3`.
-This library provides types from `Row0` to `Row19` and they are wrappers which
-provides instances for automatic conversions from and to SQL values. For details
-you can check classes like `ToSQLRow`, `ToSQLValue`, `FromSQLRow` and `FromSQLValue`.
-
-```purescript
       execute conn (Query """
         INSERT INTO fruits (name, delicious, price)
         VALUES ($1, $2, $3)
       """) (Row3 "coconut" true (Decimal.fromString "8.30"))
 ```
-
 
 We can also use nested tuples instead of `Row*` constructors. This can be a bit more
 verbose but is not restricted to limited and constant number of arguments.
@@ -101,7 +97,6 @@ verbose but is not restricted to limited and constant number of arguments.
 Of course `Row*` types and nested tuples can be also used when we are fetching
 data from db.
 `query` function processes db response and returns an `Array` of rows.
-
 
 ```purescript
       names <- query conn (Query """
@@ -130,11 +125,11 @@ If you think that we should add configuration layer for our test runner please o
 
 To run suite please:
 
-  * prepare empty "purspg" database
+  * `$ npm install`
 
-  * `$ nmp install literate-purescript`
+  * `$ createdb purspg`
 
-  * `$ ./bin/test.sh`
+  * `$ npm run test`
 
 
 ## Generating SQL Queries
