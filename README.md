@@ -84,7 +84,7 @@ run = do
 
     -- There is also a `command` function at our disposal.
     -- Some postgres SQL expressions return a "command tag" which carries
-    -- a value of rows which were affected by given query.
+    -- a value of rows which were affected by a given query.
     -- For example we can have: `DELETE rows`, `UPDATE rows`, `INSERT oid rows` etc.
     -- This function should return `rows` value associated with given response.
     deleted <- command conn (Query """DELETE FROM fruits """) Row0
