@@ -9,7 +9,7 @@ find first of them on [https://github.com/brianc/node-postgres][pg].
 
 ## Usage
 
-This guide is a literate Purescript file which is compiled into testing module (using [`literate-purescript`](https://github.com/Thimoteus/literate-purescript) - check `bin/docs.sh`) so it is a little verbose.
+This guide is a literate Purescript file which is compiled into testing module (using [`literate-purescript`](https://github.com/Thimoteus/literate-purescript)) so it is a little verbose.
 
 Let's start with imports and some testing boilerplate.
 
