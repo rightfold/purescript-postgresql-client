@@ -1,6 +1,7 @@
 module Database.PostgreSQL
 ( module Row
 , module Value
+, Database
 , PoolConfiguration
 , Pool
 , Connection
@@ -8,6 +9,7 @@ module Database.PostgreSQL
 , newPool
 , withConnection
 , withTransaction
+, defaultPoolConfiguration
 , command
 , execute
 , query
@@ -17,33 +19,46 @@ module Database.PostgreSQL
 
 import Prelude
 
-import Effect.Aff (Aff, bracket)
-import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
-import Effect (Effect)
-import Effect.Class (liftEffect)
-import Effect.Exception (error)
 import Control.Monad.Error.Class (catchError, throwError)
 import Data.Array (head)
 import Data.Either (Either(..))
-import Foreign (Foreign)
-import Data.Maybe (Maybe)
+import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
+import Data.Nullable (Nullable, toNullable)
 import Data.Traversable (traverse)
-import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), fromSQLRow, toSQLRow)
 import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), Row10(..), Row11(..), Row12(..), Row13(..), Row14(..), Row15(..), Row16(..), Row17(..), Row18(..), Row19(..), Row2(..), Row3(..), Row4(..), Row5(..), Row6(..), Row7(..), Row8(..), Row9(..), fromSQLRow, toSQLRow) as Row
+import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), fromSQLRow, toSQLRow)
 import Database.PostgreSQL.Value (class FromSQLValue)
 import Database.PostgreSQL.Value (class FromSQLValue, class ToSQLValue, fromSQLValue, instantFromString, instantToString, null, toSQLValue, unsafeIsBuffer) as Value
+import Effect (Effect)
+import Effect.Aff (Aff, bracket)
+import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
+import Effect.Class (liftEffect)
+import Effect.Exception (error)
+import Foreign (Foreign)
 
+type Database = String
 
 -- | PostgreSQL connection pool configuration.
 type PoolConfiguration =
-    { user              :: String
-    , password          :: String
-    , host              :: String
-    , port              :: Int
-    , database          :: String
-    , max               :: Int
-    , idleTimeoutMillis :: Int
+    { database :: Database
+    , host :: Maybe String
+    , idleTimeoutMillis :: Maybe Int
+    , max :: Maybe Int
+    , password :: Maybe String
+    , port :: Maybe Int
+    , user :: Maybe String
+    }
+
+defaultPoolConfiguration :: Database -> PoolConfiguration
+defaultPoolConfiguration database =
+    { database
+    , host: Nothing
+    , idleTimeoutMillis: Nothing
+    , max: Nothing
+    , password: Nothing
+    , port: Nothing
+    , user: Nothing
     }
 
 -- | PostgreSQL connection pool.
@@ -59,10 +74,32 @@ derive instance newtypeQuery :: Newtype (Query i o) _
 
 -- | Create a new connection pool.
 newPool :: PoolConfiguration -> Aff Pool
-newPool = liftEffect <<< ffiNewPool
+newPool cfg =
+  liftEffect <<< ffiNewPool $ cfg'
+  where
+  cfg' =
+    { user: toNullable cfg.user
+    , password: toNullable cfg.password
+    , host: toNullable cfg.host
+    , port: toNullable cfg.port
+    , database: cfg.database
+    , max: toNullable cfg.max
+    , idleTimeoutMillis: toNullable cfg.idleTimeoutMillis
+    }
+
+-- | Configuration which we actually pass to FFI.
+type PoolConfiguration' =
+    { user :: Nullable String
+    , password :: Nullable String
+    , host :: Nullable String
+    , port :: Nullable Int
+    , database :: String
+    , max :: Nullable Int
+    , idleTimeoutMillis :: Nullable Int
+    }
 
 foreign import ffiNewPool
-    :: PoolConfiguration
+    :: PoolConfiguration'
     -> Effect Pool
 
 -- | Run an action with a connection. The connection is released to the pool
