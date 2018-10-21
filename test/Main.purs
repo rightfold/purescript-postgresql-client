@@ -128,9 +128,9 @@ main = do
               INSERT INTO foods (name, delicious, price)
               VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9)
             """)
-              ( "pork" /\ true /\ (D.fromString "8.30")
-              /\ "sauerkraut" /\ false /\ (D.fromString "3.30")
-              /\ "rookworst" /\ true /\ (D.fromString "5.60"))
+              ( ("pork" /\ true /\ (D.fromString "8.30"))
+              /\ ("sauerkraut" /\ false /\ (D.fromString "3.30"))
+              /\ ("rookworst" /\ true /\ (D.fromString "5.60")))
             names <- query conn (Query """
               SELECT name, delicious
               FROM foods

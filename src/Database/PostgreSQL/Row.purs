@@ -20,7 +20,9 @@ class FromSQLRow a where
 instance toSQLRowForeignArray :: ToSQLRow (Array Foreign) where
   toSQLRow = identity
 
-instance toSQLRowTuple :: (ToSQLValue a, ToSQLRow (Tuple b t)) => ToSQLRow (Tuple a (Tuple b t)) where
+instance toSQLRowTupleOfTuples :: (ToSQLRow (Tuple a ta), ToSQLRow (Tuple b t)) => ToSQLRow (Tuple (Tuple a ta) (Tuple b t)) where
+  toSQLRow (Tuple a t) = toSQLRow a <> toSQLRow t
+else instance toSQLRowTuple :: (ToSQLValue a, ToSQLRow (Tuple b t)) => ToSQLRow (Tuple a (Tuple b t)) where
   toSQLRow (Tuple a t) = toSQLValue a : toSQLRow t
 else instance toSQLRowTupleEnd :: (ToSQLValue a, ToSQLValue b) => ToSQLRow (Tuple a b) where
   toSQLRow (Tuple a b) = [ toSQLValue a, toSQLValue b ]

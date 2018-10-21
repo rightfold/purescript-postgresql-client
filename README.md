@@ -18,33 +18,33 @@ module Test.Example where
 
 import Prelude
 
-import Database.PostgreSQL (defaultPoolConfiguration, execute, newPool, Query(Query), withConnection)
+import Database.PostgreSQL (defaultPoolConfiguration, execute, newPool, query, Query(Query), withConnection)
 import Database.PostgreSQL.Row (Row0(Row0), Row3(Row3))
 import Data.Decimal as Decimal
 import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
+import Effect.Class (liftEffect)
+import Test.Assert (assert)
 
 -- Our interaction with db is performed asynchronously in `Aff`
 run ∷ Aff Unit
 run = do
 
-  -- Now we are able to setup connection. We are assuming here
-  -- that postgres is running on a standard local port.
-  -- We use `ident` authentication so configuration can be nearly empty.
+  -- We assume here that postgres is running on a standard local port together
+  -- with `ident` authentication so configuration can be nearly empty.
   -- It requires only database name which we pass to `newPool` function.
-  -- We want to close connection after a second (`idleTimeoutMillis` setting) because this code
-  -- would be run by our test suite ;-)
-  -- Of course you can provide additional configuration settings if you need to.
+  -- We setup also `idleTimeoutMillis` setting because this code
+  -- would be run by our test suite and we want to finish quickly ;-)
 
   pool <- newPool ((defaultPoolConfiguration "purspg") { idleTimeoutMillis = Just 1000 })
   withConnection pool \conn -> do
 
     -- We can now create our temporary table which we are going to query in this example.
-    -- `execute` performs this query. It ignores result value by default.
+    -- `execute` ignores result value which is what we want in this case.
  
     execute conn (Query """
-      CREATE TEMPORARY TABLE foods (
+      CREATE TEMPORARY TABLE fruits (
         name text NOT NULL,
         delicious boolean NOT NULL,
         price NUMERIC(4,2) NOT NULL,
@@ -60,18 +60,28 @@ run = do
     -- provides instances for automatic conversions from and to SQL values.
 
     execute conn (Query """
-      INSERT INTO foods (name, delicious, price)
+      INSERT INTO fruits (name, delicious, price)
       VALUES ($1, $2, $3)
-    """) (Row3 "pork" true (Decimal.fromString "8.30"))
+    """) (Row3 "coconut" true (Decimal.fromString "8.30"))
 
 
     -- You can also use nested tuples instead of `Row*` types but this can be a bit more
     -- verbose. `/\` is just an alias for `Tuple` constructor.
 
     execute conn (Query """
-      INSERT INTO foods (name, delicious, price)
+      INSERT INTO fruits (name, delicious, price)
       VALUES ($1, $2, $3)
-    """) ("sauerkraut" /\ false /\ Decimal.fromString "3.30")
+    """) ("lemon" /\ false /\ Decimal.fromString "3.30")
+
+    -- Of course `Row*` typees and nested tuples can be also used when we are fetching
+    -- data from db.
+
+    names <- query conn (Query """
+      SELECT name, delicious
+      FROM fruits
+      ORDER BY name ASC
+    """) Row0
+    liftEffect <<< assert $ names == ["coconut" /\ true, "lemon" /\ false]
 
 ```
 
