@@ -16,7 +16,7 @@ module Test.Example where
 
 import Prelude
 
-import Database.PostgreSQL (defaultPoolConfiguration, execute, newPool, query, Query(Query), withConnection)
+import Database.PostgreSQL (defaultPoolConfiguration, command, execute, newPool, query, Query(Query), withConnection)
 import Database.PostgreSQL.Row (Row0(Row0), Row3(Row3))
 import Data.Decimal as Decimal
 import Data.Maybe (Maybe(..))
@@ -32,8 +32,8 @@ run = do
   -- We assume here that postgres is running on a standard local port together
   -- with `ident` authentication so configuration can be nearly empty.
   -- It requires only database name which we pass to `newPool` function.
-  -- We setup also `idleTimeoutMillis` setting because this code
-  -- would be run by our test suite and we want to finish quickly ;-)
+  -- We setup also `idleTimeoutMillis` value because this code
+  -- is run by our test suite and we want to exit after execution quickly ;-)
 
   pool <- newPool ((defaultPoolConfiguration "purspg") { idleTimeoutMillis = Just 1000 })
   withConnection pool \conn -> do
@@ -64,15 +64,16 @@ run = do
 
 
     -- You can also use nested tuples instead of `Row*` types but this can be a bit more
-    -- verbose. `/\` is just an alias for `Tuple` constructor.
+    -- verbose. `/\` is just an alias for the `Tuple` constructor.
 
     execute conn (Query """
       INSERT INTO fruits (name, delicious, price)
       VALUES ($1, $2, $3)
     """) ("lemon" /\ false /\ Decimal.fromString "3.30")
 
-    -- Of course `Row*` typees and nested tuples can be also used when we are fetching
+    -- Of course `Row*` types and nested tuples can be also used when we are fetching
     -- data from db.
+    -- `query` function processes db response and returns an `Array` of rows.
 
     names <- query conn (Query """
       SELECT name, delicious
@@ -81,13 +82,22 @@ run = do
     """) Row0
     liftEffect <<< assert $ names == ["coconut" /\ true, "lemon" /\ false]
 
+    -- There is also a `command` function at our disposal.
+    -- Some postgres SQL expressions return a "command tag" which carries
+    -- a value of rows which were affected by given query.
+    -- For example we can have: `DELETE rows`, `UPDATE rows`, `INSERT oid rows` etc.
+    -- This function should return `rows` value associated with given response.
+    deleted <- command conn (Query """DELETE FROM fruits """) Row0
+    liftEffect <<< assert $ deleted == 2
+
 ```
 
 ## Testing
 
 Currently tests are prepared to work with default and local setup for postgresql (ident authentication, standart port etc.).
 If you think that we should add configuration layer for our test runner please open an issue.
-To run suite:
+
+To run suite please:
 
   * prepare empty "purspg" database
 
