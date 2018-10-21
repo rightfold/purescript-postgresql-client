@@ -1,10 +1,13 @@
 module Database.PostgreSQL.Row where
 
-import Data.Array as Array
-import Data.Either (Either(..))
-import Foreign (Foreign)
-import Database.PostgreSQL.Value (class FromSQLValue, class ToSQLValue, fromSQLValue, toSQLValue)
 import Prelude
+
+import Data.Array (uncons, (:))
+import Data.Array as Array
+import Data.Either (Either(..), note)
+import Data.Tuple (Tuple(..))
+import Database.PostgreSQL.Value (class FromSQLValue, class ToSQLValue, fromSQLValue, toSQLValue)
+import Foreign (Foreign)
 
 -- | Convert things to SQL rows.
 class ToSQLRow a where
@@ -16,6 +19,19 @@ class FromSQLRow a where
 
 instance toSQLRowForeignArray :: ToSQLRow (Array Foreign) where
   toSQLRow = identity
+
+instance toSQLRowTuple :: (ToSQLValue a, ToSQLRow (Tuple b t)) => ToSQLRow (Tuple a (Tuple b t)) where
+  toSQLRow (Tuple a t) = toSQLValue a : toSQLRow t
+else instance toSQLRowTupleEnd :: (ToSQLValue a, ToSQLValue b) => ToSQLRow (Tuple a b) where
+  toSQLRow (Tuple a b) = [ toSQLValue a, toSQLValue b ]
+
+instance fromSQLRowTuple :: (FromSQLValue a, FromSQLRow (Tuple b t)) => FromSQLRow (Tuple a (Tuple b t)) where
+  fromSQLRow r = do
+    {head, tail} ← note "Expecting more fields in a row" $ uncons r
+    Tuple <$> fromSQLValue head <*> fromSQLRow tail
+else instance fromSQLRowTupleEnd :: (FromSQLValue a, FromSQLValue b) => FromSQLRow (Tuple a b) where
+  fromSQLRow [a, b] = Tuple <$> fromSQLValue a <*> fromSQLValue b
+  fromSQLRow _ = Left "Expecting exactly two more fields."
 
 -- | A row with 0 fields.
 data Row0 = Row0
