@@ -20,7 +20,8 @@
     "purescript-decimals": "^4.0.0",
     "purescript-js-date": "^6.0.0",
     "purescript-foreign-object": "^1.0.0",
-    "purescript-foreign-generic": "^7.0.0"
+    "purescript-foreign-generic": "^7.0.0",
+    "purescript-tuples": "^5.0.0"
   },
   "repository": {
     "type": "git",

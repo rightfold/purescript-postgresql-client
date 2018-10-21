@@ -75,6 +75,17 @@ run = do
 
 ```
 
+## Testing
+
+Currently tests are prepared to work with default and local setup for postgresql (ident authentication, standart port etc.).
+If you think that we should add configuration layer for our test runner please open an issue.
+To run suite:
+
+  * prepare empty "purspg" database
+
+  * `$ nmp install literate-purescript`
+
+  * `$ ./bin/test.sh`
 
 
 ## Generating SQL Queries
@@ -85,6 +96,3 @@ generator instead of a preprocessor, and easier to use.
 [sqltopurs]: https://github.com/rightfold/sqltopurs
 
 
-## Testing
-
-To run tests you have to prepare "purspg" database and use standard command: `pulp test`.
