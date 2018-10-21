@@ -18,7 +18,7 @@ module Test.Example where
 
 import Prelude
 
-import Database.PostgreSQL (defaultPoolConfiguration, command, execute, newPool, query, Query(Query), withConnection)
+import Database.PostgreSQL (defaultPoolConfiguration, command, execute, newPool, query, Query(Query), withConnection, withTransaction)
 import Database.PostgreSQL.Row (Row0(Row0), Row3(Row3))
 import Data.Decimal as Decimal
 import Data.Maybe (Maybe(..))
@@ -63,7 +63,16 @@ The last `Row0` value indicates that this `Query` doesn't take any additional pa
     """) Row0
 ```
 
-We can insert some data calling `execute` function with `INSERT` statement.
+There is `withTransaction` helper provided. You can wrap the whole
+interaction with database in it. It will rollback if any exception
+is thrown during execution of given `Aff` block. It commits in the other case.
+
+
+```purescript
+    withTransaction conn $ do
+```
+
+Now we can insert some data calling `execute` function with `INSERT` statement.
 Please notice that we are passing a tuple of arguments to this query
 using dedicated constructor. In this case `Row3`.
 This library provides types from `Row0` to `Row19` and they are wrappers which
@@ -71,10 +80,10 @@ provides instances for automatic conversions from and to SQL values. For details
 you can check classes like `ToSQLRow`, `ToSQLValue`, `FromSQLRow` and `FromSQLValue`.
 
 ```purescript
-    execute conn (Query """
-      INSERT INTO fruits (name, delicious, price)
-      VALUES ($1, $2, $3)
-    """) (Row3 "coconut" true (Decimal.fromString "8.30"))
+      execute conn (Query """
+        INSERT INTO fruits (name, delicious, price)
+        VALUES ($1, $2, $3)
+      """) (Row3 "coconut" true (Decimal.fromString "8.30"))
 ```
 
 
@@ -83,11 +92,10 @@ verbose but is not restricted to limited and constant number of arguments.
 `/\` is just an alias for the `Tuple` constructor from `Data.Tuple.Nested`.
 
 ```purescript
-    execute conn (Query """
-      INSERT INTO fruits (name, delicious, price)
-      VALUES ($1, $2, $3)
-    """) ("lemon" /\ false /\ Decimal.fromString "3.30")
-
+      execute conn (Query """
+        INSERT INTO fruits (name, delicious, price)
+        VALUES ($1, $2, $3)
+      """) ("lemon" /\ false /\ Decimal.fromString "3.30")
 ```
 
 Of course `Row*` types and nested tuples can be also used when we are fetching
@@ -96,24 +104,23 @@ data from db.
 
 
 ```purescript
-    names <- query conn (Query """
-      SELECT name, delicious
-      FROM fruits
-      ORDER BY name ASC
-    """) Row0
-    liftEffect <<< assert $ names == ["coconut" /\ true, "lemon" /\ false]
+      names <- query conn (Query """
+        SELECT name, delicious
+        FROM fruits
+        ORDER BY name ASC
+      """) Row0
+      liftEffect <<< assert $ names == ["coconut" /\ true, "lemon" /\ false]
 ```
 
 There is also a `command` function at our disposal.
 Some postgres SQL expressions return a "command tag" which carries
-a value of rows which were affected by a given query.
+a value with a number of rows which were affected by a given query.
 For example we can have: `DELETE rows`, `UPDATE rows`, `INSERT oid rows` etc.
 This function should return `rows` value associated with given response.
 
 ```purescript
-    deleted <- command conn (Query """DELETE FROM fruits """) Row0
-    liftEffect <<< assert $ deleted == 2
-
+      deleted <- command conn (Query """DELETE FROM fruits """) Row0
+      liftEffect <<< assert $ deleted == 2
 ```
 
 ## Testing
