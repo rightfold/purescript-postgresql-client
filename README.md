@@ -11,7 +11,9 @@ find first of them on [https://github.com/brianc/node-postgres][pg].
 
 This guide is a literate Purescript file which is extracted into testing module (using [`literate-purescript`](https://github.com/Thimoteus/literate-purescript)) so it is a little verbose.
 
-``` purescript
+Let's start with imports.
+
+```purescript
 module Test.Example where
 
 import Prelude
@@ -24,23 +26,31 @@ import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Test.Assert (assert)
+```
 
--- Our interaction with db is performed asynchronously in `Aff`
+The whole API for interaction with postgres is performed asynchronously in `Aff`.
+
+We assume here that postgres is running on a standard local port
+with `ident` authentication so configuration can be nearly empty (`defaultPoolConfiguration`).
+It requires only database name which we pass to `newPool` function.
+We setup also `idleTimeoutMillis` value because this code
+is run by our test suite and we want to exit after execution quickly ;-)
+
+
+```purescript
 run ∷ Aff Unit
 run = do
 
-  -- We assume here that postgres is running on a standard local port together
-  -- with `ident` authentication so configuration can be nearly empty.
-  -- It requires only database name which we pass to `newPool` function.
-  -- We setup also `idleTimeoutMillis` value because this code
-  -- is run by our test suite and we want to exit after execution quickly ;-)
-
   pool <- newPool ((defaultPoolConfiguration "purspg") { idleTimeoutMillis = Just 1000 })
   withConnection pool \conn -> do
+```
 
-    -- We can now create our temporary table which we are going to query in this example.
-    -- `execute` ignores result value which is what we want in this case.
- 
+We can now create our temporary table which we are going to query in this example.
+`execute` ignores result value which is what we want in this case.
+
+
+```purescript
+
     execute conn (Query """
       CREATE TEMPORARY TABLE fruits (
         name text NOT NULL,
@@ -50,43 +60,56 @@ run = do
         PRIMARY KEY (name)
       );
     """) Row0
+```
 
-    -- We can insert some data calling `execute` function with `INSERT` statement.
-    -- Please notice that we are passing a tuple of arguments to this query
-    -- using dedicated constructor (in this case `Row3`).
-    -- This library provides types from `Row0` to `Row19` and they are wrappers which
-    -- provides instances for automatic conversions from and to SQL values.
+We can insert some data calling `execute` function with `INSERT` statement.
+Please notice that we are passing a tuple of arguments to this query
+using dedicated constructor. In this case `Row3`.
+This library provides types from `Row0` to `Row19` and they are wrappers which
+provides instances for automatic conversions from and to SQL values. For details
+you can check classes like `ToSQLRow`, `ToSQLValue`, `FromSQLRow` and `FromSQLValue`.
 
+```purescript
     execute conn (Query """
       INSERT INTO fruits (name, delicious, price)
       VALUES ($1, $2, $3)
     """) (Row3 "coconut" true (Decimal.fromString "8.30"))
+```
 
 
-    -- You can also use nested tuples instead of `Row*` types but this can be a bit more
-    -- verbose. `/\` is just an alias for the `Tuple` constructor.
+We can also use nested tuples instead of `Row*` constructors. This can be a bit more
+verbose but is not restricted to limited and constant number of arguments.
+`/\` is just an alias for the `Tuple` constructor from `Data.Tuple.Nested`.
 
+```purescript
     execute conn (Query """
       INSERT INTO fruits (name, delicious, price)
       VALUES ($1, $2, $3)
     """) ("lemon" /\ false /\ Decimal.fromString "3.30")
 
-    -- Of course `Row*` types and nested tuples can be also used when we are fetching
-    -- data from db.
-    -- `query` function processes db response and returns an `Array` of rows.
+```
 
+Of course `Row*` types and nested tuples can be also used when we are fetching
+data from db.
+`query` function processes db response and returns an `Array` of rows.
+
+
+```purescript
     names <- query conn (Query """
       SELECT name, delicious
       FROM fruits
       ORDER BY name ASC
     """) Row0
     liftEffect <<< assert $ names == ["coconut" /\ true, "lemon" /\ false]
+```
 
-    -- There is also a `command` function at our disposal.
-    -- Some postgres SQL expressions return a "command tag" which carries
-    -- a value of rows which were affected by a given query.
-    -- For example we can have: `DELETE rows`, `UPDATE rows`, `INSERT oid rows` etc.
-    -- This function should return `rows` value associated with given response.
+There is also a `command` function at our disposal.
+Some postgres SQL expressions return a "command tag" which carries
+a value of rows which were affected by a given query.
+For example we can have: `DELETE rows`, `UPDATE rows`, `INSERT oid rows` etc.
+This function should return `rows` value associated with given response.
+
+```purescript
     deleted <- command conn (Query """DELETE FROM fruits """) Row0
     liftEffect <<< assert $ deleted == 2
 
