@@ -47,6 +47,7 @@ run = do
 
 We can now create our temporary table which we are going to query in this example.
 `execute` ignores result value which is what we want in this case.
+The last `Row0` value indicates that this `Query` doesn't take any additional parameters.
 
 
 ```purescript
