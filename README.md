@@ -4,8 +4,8 @@ purescript-postgresql-client is a PostgreSQL client library for PureScript.
 
 ## Install
 
-To use this library, you need to add `pg` and `decimal.js` as an npm dependency. You can also
-find first of them on [https://github.com/brianc/node-postgres][pg].
+To use this library, you need to add [`pg`][pg] and [`decimal.js`][decimal.js] as an npm dependency. You can also
+find first of them on [https://github.com/brianc/node-postgres](https://github.com/brianc/node-postgres).
 
 ## Usage
 
@@ -138,5 +138,5 @@ The purspgpp preprocessor has been replaced by [sqltopurs], which is a code
 generator instead of a preprocessor, and easier to use.
 
 [sqltopurs]: https://github.com/rightfold/sqltopurs
-
-
+[pg]: https://www.npmjs.com/package/pg
+[decimal.js]: https://www.npmjs.com/package/decimal.js
