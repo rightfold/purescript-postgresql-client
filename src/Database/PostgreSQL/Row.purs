@@ -24,14 +24,19 @@ instance toSQLRowTupleOfTuples :: (ToSQLRow (Tuple a ta), ToSQLRow (Tuple b t)) 
   toSQLRow (Tuple a t) = toSQLRow a <> toSQLRow t
 else instance toSQLRowTuple :: (ToSQLValue a, ToSQLRow (Tuple b t)) => ToSQLRow (Tuple a (Tuple b t)) where
   toSQLRow (Tuple a t) = toSQLValue a : toSQLRow t
-else instance toSQLRowTupleEnd :: (ToSQLValue a, ToSQLValue b) => ToSQLRow (Tuple a b) where
+else instance toSQLRowTupleOne :: ToSQLValue a => ToSQLRow (Tuple a Unit) where
+  toSQLRow (Tuple a unit) = [ toSQLValue a ]
+else instance toSQLRowTupleTwo :: (ToSQLValue a, ToSQLValue b) => ToSQLRow (Tuple a b) where
   toSQLRow (Tuple a b) = [ toSQLValue a, toSQLValue b ]
 
 instance fromSQLRowTuple :: (FromSQLValue a, FromSQLRow (Tuple b t)) => FromSQLRow (Tuple a (Tuple b t)) where
   fromSQLRow r = do
     {head, tail} ← note "Expecting more fields in a row" $ uncons r
     Tuple <$> fromSQLValue head <*> fromSQLRow tail
-else instance fromSQLRowTupleEnd :: (FromSQLValue a, FromSQLValue b) => FromSQLRow (Tuple a b) where
+else instance fromSQLRowTupleOne :: FromSQLValue a => FromSQLRow (Tuple a Unit) where
+  fromSQLRow [a] = Tuple <$> fromSQLValue a <@> unit
+  fromSQLRow _ = Left "Expecting exactly one field."
+else instance fromSQLRowTupleTwo :: (FromSQLValue a, FromSQLValue b) => FromSQLRow (Tuple a b) where
   fromSQLRow [a, b] = Tuple <$> fromSQLValue a <*> fromSQLValue b
   fromSQLRow _ = Left "Expecting exactly two more fields."
 

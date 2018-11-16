@@ -27,7 +27,7 @@ import Foreign.Object (Object, fromFoldable)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
 import Test.Assert (assert)
-import Test.Example (run) as Example
+-- import Test.Example (run) as Example
 import Test.Unit (TestF, suite)
 import Test.Unit as Test.Unit
 import Test.Unit.Assert (equal)
@@ -66,7 +66,7 @@ main ∷ Effect Unit
 main = do
   void $ launchAff do
     -- Running guide from README
-    Example.run
+    -- Example.run
 
     -- Acctual test suite
     pool <- newPool config
@@ -138,6 +138,15 @@ main = do
               ORDER BY name ASC
             """) Row0
             liftEffect <<< assert $ names == ["pork" /\ true, "rookworst" /\ true]
+
+          test conn "nested tuples as rows - just one element" $ do
+            let row = date 2010 2 31 /\ unit
+            execute conn (Query """
+              INSERT INTO dates (date)
+              VALUES ($1)
+            """) row
+            rows <- query conn (Query "SELECT date FROM dates") Row0
+            liftEffect <<< assert $ rows == [row]
 
           let
             insertFood =
