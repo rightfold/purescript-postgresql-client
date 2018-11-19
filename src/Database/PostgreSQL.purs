@@ -49,8 +49,13 @@ import Foreign (Foreign)
 
 type Database = String
 
--- | PostgreSQL computations run in the `PG` monad. It's just `Aff`
--- | stacked with ExceptT to provide error handling.
+-- | PostgreSQL computations run in the `PG` monad. It's just `Aff` stacked with
+-- | `ExceptT` to provide error handling.
+-- |
+-- | Errors originating from database queries or connection to the database are
+-- | modeled with the `PGError` type. Use `runExceptT` from
+-- | `Control.Monad.Except.Trans` to turn a `PG a` action into `Aff (Either
+-- | PGError a)`.
 type PG a = ExceptT PGError Aff a
 
 -- | PostgreSQL connection pool configuration.
@@ -157,7 +162,8 @@ foreign import ffiConnect
     -> EffectFnAff (Either PGError ConnectResult)
 
 -- | Run an action within a transaction. The transaction is committed if the
--- | action returns, and rolled back when the action throws. If you want to
+-- | action returns cleanly, and rolled back if the action throws (either a
+-- | `PGError` or a JavaScript exception in the Aff context). If you want to
 -- | change the transaction mode, issue a separate `SET TRANSACTION` statement
 -- | within the transaction.
 withTransaction
@@ -225,7 +231,7 @@ scalar conn sql values =
 
 -- | Execute a PostgreSQL query and return its command tag value
 -- | (how many rows were affected by the query). This may be useful
--- | for example with DELETE or UPDATE queries.
+-- | for example with `DELETE` or `UPDATE` queries.
 command
     :: ∀ i
      . ToSQLRow i
