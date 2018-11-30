@@ -26,7 +26,6 @@ import Control.Monad.Error.Class (catchError, throwError, try)
 import Control.Monad.Except.Trans (ExceptT, except, runExceptT)
 import Control.Monad.Trans.Class (lift)
 import Data.Array (head)
-import Data.Bifunctor (lmap)
 import Data.Either (Either(..))
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
@@ -94,17 +93,17 @@ derive instance newtypeQuery :: Newtype (Query i o) _
 -- | Create a new connection pool.
 newPool :: PoolConfiguration -> Aff Pool
 newPool cfg =
-  liftEffect <<< ffiNewPool $ cfg'
-  where
-  cfg' =
-    { user: toNullable cfg.user
-    , password: toNullable cfg.password
-    , host: toNullable cfg.host
-    , port: toNullable cfg.port
-    , database: cfg.database
-    , max: toNullable cfg.max
-    , idleTimeoutMillis: toNullable cfg.idleTimeoutMillis
-    }
+    liftEffect <<< ffiNewPool $ cfg'
+    where
+    cfg' =
+        { user: toNullable cfg.user
+        , password: toNullable cfg.password
+        , host: toNullable cfg.host
+        , port: toNullable cfg.port
+        , database: cfg.database
+        , max: toNullable cfg.max
+        , idleTimeoutMillis: toNullable cfg.idleTimeoutMillis
+        }
 
 -- | Configuration which we actually pass to FFI.
 type PoolConfiguration' =
@@ -131,11 +130,11 @@ withConnection
 withConnection p k =
     except <=< lift $ bracket (connect p) cleanup run
     where
-        cleanup (Left _) = pure unit
-        cleanup (Right { done }) = liftEffect done
+    cleanup (Left _) = pure unit
+    cleanup (Right { done }) = liftEffect done
 
-        run (Left err) = pure $ Left err
-        run (Right { connection }) = runExceptT $ k connection
+    run (Left err) = pure $ Left err
+    run (Right { connection }) = runExceptT $ k connection
 
 connect
     :: Pool
@@ -146,7 +145,6 @@ connect =
             { nullableLeft: toNullable <<< map Left <<< convertError
             , right: Right
             }
-
 
 type ConnectResult =
     { connection :: Connection
@@ -184,10 +182,9 @@ withTransaction conn action =
             pure value
 
     where
-        begin = execute conn (Query "BEGIN TRANSACTION") Row0
-        commit = execute conn (Query "COMMIT TRANSACTION") Row0
-        rollback = execute conn (Query "ROLLBACK TRANSACTION") Row0
-
+    begin = execute conn (Query "BEGIN TRANSACTION") Row0
+    commit = execute conn (Query "COMMIT TRANSACTION") Row0
+    rollback = execute conn (Query "ROLLBACK TRANSACTION") Row0
 
 -- | Execute a PostgreSQL query and discard its results.
 execute
@@ -198,7 +195,7 @@ execute
     -> i
     -> PG Unit
 execute conn (Query sql) values =
-    void $ unsafeQuery Rows conn sql (toSQLRow values)
+    void $ unsafeQuery conn sql (toSQLRow values)
 
 -- | Execute a PostgreSQL query and return its results.
 query
@@ -210,7 +207,7 @@ query
     -> i
     -> PG (Array o)
 query conn (Query sql) values = do
-    unsafeQuery Rows conn sql (toSQLRow values)
+    _.rows <$> unsafeQuery conn sql (toSQLRow values)
     >>= traverse (fromSQLRow >>> case _ of
           Right row -> pure row
           Left  msg -> throwError $ ConversionError msg)
@@ -239,91 +236,76 @@ command
     -> Query i Int
     -> i
     -> PG Int
-command conn (Query sql) values = do
-    result <- unsafeQuery RowCount conn sql (toSQLRow values)
-    case result of
-      [[x]] -> except $ lmap ConversionError (Value.fromSQLValue x)
-      _ -> throwError (ConversionError "unexpected data")
+command conn (Query sql) values =
+    _.rowCount <$> unsafeQuery conn sql (toSQLRow values)
 
-data QueryMode
-  = Rows
-  | RowCount
-
-
-type QueryResult
-    = Array (Array Foreign)
-
+type QueryResult =
+    { rows :: Array (Array Foreign)
+    , rowCount :: Int
+    }
 
 unsafeQuery
-    :: QueryMode
-    -> Connection
+    :: Connection
     -> String
     -> Array Foreign
     -> PG QueryResult
-unsafeQuery m c s =
-  except <=< lift <<< fromEffectFnAff <<< ffiUnsafeQuery p c s
-  where
+unsafeQuery c s =
+    except <=< lift <<< fromEffectFnAff <<< ffiUnsafeQuery p c s
+    where
     p =
-      { queryMode: case m of
-           Rows -> "rows"
-           RowCount -> "rowCount"
-      , nullableLeft: toNullable <<< map Left <<< convertError
-      , right: Right
-      }
+        { nullableLeft: toNullable <<< map Left <<< convertError
+        , right: Right
+        }
 
 foreign import ffiUnsafeQuery
-    :: { queryMode :: String
-       , nullableLeft :: Error -> Nullable (Either PGError QueryResult)
+    :: { nullableLeft :: Error -> Nullable (Either PGError QueryResult)
        , right :: QueryResult -> Either PGError QueryResult
        }
     -> Connection
     -> String
     -> Array Foreign
-    -> EffectFnAff (Either PGError (Array (Array Foreign)))
-
+    -> EffectFnAff (Either PGError QueryResult)
 
 data PGError
-  = ConnectionError String
-  | ConversionError String
-  | InternalError PGErrorDetail
-  | OperationalError PGErrorDetail
-  | ProgrammingError PGErrorDetail
-  | IntegrityError PGErrorDetail
-  | DataError PGErrorDetail
-  | NotSupportedError PGErrorDetail
-  | QueryCanceledError PGErrorDetail
-  | TransactionRollbackError PGErrorDetail
-
+    = ConnectionError String
+    | ConversionError String
+    | InternalError PGErrorDetail
+    | OperationalError PGErrorDetail
+    | ProgrammingError PGErrorDetail
+    | IntegrityError PGErrorDetail
+    | DataError PGErrorDetail
+    | NotSupportedError PGErrorDetail
+    | QueryCanceledError PGErrorDetail
+    | TransactionRollbackError PGErrorDetail
 
 derive instance eqPGError :: Eq PGError
 derive instance genericPGError :: Generic PGError _
 
 instance showPGError :: Show PGError where
-  show = genericShow
+    show = genericShow
 
 type PGErrorDetail =
-  { severity :: String
-  , code :: String
-  , message :: String
-  , detail :: String
-  , hint :: String
-  , position :: String
-  , internalPosition :: String
-  , internalQuery :: String
-  , where_ :: String
-  , schema :: String
-  , table :: String
-  , column :: String
-  , dataType :: String
-  , constraint :: String
-  , file :: String
-  , line :: String
-  , routine :: String
-  }
+    { severity :: String
+    , code :: String
+    , message :: String
+    , detail :: String
+    , hint :: String
+    , position :: String
+    , internalPosition :: String
+    , internalQuery :: String
+    , where_ :: String
+    , schema :: String
+    , table :: String
+    , column :: String
+    , dataType :: String
+    , constraint :: String
+    , file :: String
+    , line :: String
+    , routine :: String
+    }
 
 foreign import ffiSQLState :: Error -> Nullable String
 foreign import ffiErrorDetail :: Error -> PGErrorDetail
-
 
 convertError :: Error -> Maybe PGError
 convertError err =
@@ -358,12 +340,11 @@ convertError err =
       prefix p =
           maybe false (_ == 0) <<< String.indexOf (Pattern p)
 
-
 onIntegrityError :: forall a. PG a -> PG a -> PG a
 onIntegrityError errorResult db =
-  catchError db handleError
-  where
+    catchError db handleError
+    where
     handleError e =
-      case e of
-        IntegrityError _ -> errorResult
-        _ -> throwError e
+        case e of
+            IntegrityError _ -> errorResult
+            _ -> throwError e

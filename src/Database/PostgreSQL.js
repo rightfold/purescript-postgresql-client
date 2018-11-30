@@ -45,11 +45,7 @@ exports.ffiUnsafeQuery = function(config) {
                         values: values,
                         rowMode: 'array',
                     }).then(function(result) {
-                        if (config.queryMode === "rows") {
-                            onSuccess(config.right(result.rows));
-                        } else if (config.queryMode === "rowCount") {
-                            onSuccess(config.right([[result.rowCount]]));
-                        }
+                        onSuccess(config.right(result))
                     }).catch(function(err) {
                         var pgError = config.nullableLeft(err);
                         if (pgError) {
