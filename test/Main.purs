@@ -20,7 +20,7 @@ import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
-import Database.PostgreSQL (Connection, PG, PGError(..), PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), command, defaultPoolConfiguration, execute, newPool, onIntegrityError, query, scalar, withConnection, withTransaction)
+import Database.PostgreSQL (Connection, PG, PGError(..), PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), command, execute, newPool, onIntegrityError, query, scalar, withConnection, withTransaction)
 import Effect (Effect)
 import Effect.Aff (Aff, error, launchAff)
 import Effect.Class (liftEffect)
@@ -35,6 +35,8 @@ import Test.Unit as Test.Unit
 import Test.Unit.Assert (equal)
 import Test.Unit.Main (runTest)
 
+pgEqual :: forall a. Eq a => Show a => a -> a -> PG Unit
+pgEqual a b = lift $ equal a b
 
 withRollback
   ∷ Connection
@@ -64,7 +66,7 @@ transactionTest name action =
 checkPGErrors :: PG Unit -> Aff Unit
 checkPGErrors action = do
     runExceptT action >>= case _ of
-        Left pgError -> liftEffect $ assert false
+        Left pgError -> Test.Unit.failure "Unexpected PostgreSQL error occured"
         Right _ -> pure unit
 
 now ∷ Effect Instant
@@ -263,7 +265,7 @@ main = do
               FROM dates
               ORDER BY date ASC
             """) Row0
-            lift $ equal 3 (length dates)
+            pgEqual  3 (length dates)
             liftEffect <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip dates [d1, d2, d3])
 
           test conn "handling json and jsonb value" $ do
@@ -294,7 +296,7 @@ main = do
               FROM timestamps
               ORDER BY timestamp ASC
             """) Row0
-            lift $ equal 3 (length timestamps)
+            pgEqual 3 (length timestamps)
             liftEffect <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip timestamps [jsd1, jsd2, jsd3])
 
         suite "PostgreSQL connection errors" $ do
@@ -302,22 +304,15 @@ main = do
 
           Test.Unit.test "connection refused" do
             testPool <- newPool cannotConnectConfig
-            runExceptT (withConnection testPool doNothing) >>= liftEffect <<< case _ of
-              Left (ConnectionError cause) ->
-                assert $ cause == "ECONNREFUSED"
-
-              _ ->
-                assert false
+            runExceptT (withConnection testPool doNothing) >>= case _ of
+              Left (ConnectionError cause) -> equal cause "ECONNREFUSED"
+              _ -> Test.Unit.failure "foo"
 
           Test.Unit.test "no such database" do
             testPool <- newPool noSuchDatabaseConfig
-            runExceptT (withConnection testPool doNothing) >>= liftEffect <<< case _ of
-              Left (ProgrammingError { code, message }) -> do
-                assert $ code == "3D000"
-                assert $ message == "database \"this-database-does-not-exist\" does not exist"
-
-              _ ->
-                assert false
+            runExceptT (withConnection testPool doNothing) >>= case _ of
+              Left (ProgrammingError { code, message }) -> equal code "3D000"
+              _ -> Test.Unit.failure "PostgreSQL error was expected"
 
 config :: PoolConfiguration
 config =
