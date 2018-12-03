@@ -4,13 +4,14 @@ module Test.Main
 
 import Prelude
 
-import Control.Monad.Error.Class (catchError, throwError, try)
-import Control.Monad.Free (Free)
+import Control.Monad.Error.Class (throwError, try)
+import Control.Monad.Except.Trans (runExceptT)
+import Control.Monad.Trans.Class (lift)
 import Data.Array (zip)
 import Data.Date (Date, canonicalDate)
 import Data.DateTime.Instant (Instant, unInstant)
 import Data.Decimal as D
-import Data.Either (isLeft)
+import Data.Either (Either(..))
 import Data.Enum (toEnum)
 import Data.Foldable (all, length)
 import Data.JSDate (JSDate, jsdate, toInstant)
@@ -19,38 +20,54 @@ import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
-import Database.PostgreSQL (Connection, PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), command, execute, newPool, query, scalar, withConnection, withTransaction)
+import Database.PostgreSQL (Connection, PG, PGError(..), PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), command, execute, newPool, onIntegrityError, query, scalar, withConnection, withTransaction)
 import Effect (Effect)
 import Effect.Aff (Aff, error, launchAff)
 import Effect.Class (liftEffect)
+import Effect.Exception (message)
 import Foreign.Object (Object, fromFoldable)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
 import Test.Assert (assert)
 import Test.Example (run) as Example
-import Test.Unit (TestF, suite)
+import Test.Unit (TestSuite, suite)
 import Test.Unit as Test.Unit
 import Test.Unit.Assert (equal)
 import Test.Unit.Main (runTest)
 
+pgEqual :: forall a. Eq a => Show a => a -> a -> PG Unit
+pgEqual a b = lift $ equal a b
+
 withRollback
-  ∷ ∀ a
-  . Connection
-  → Aff a
-  → Aff Unit
-withRollback conn action = do
-  execute conn (Query "BEGIN TRANSACTION") Row0
-  catchError (action >>= const rollback) (\e -> rollback >>= const (throwError e))
-  where
-  rollback = execute conn (Query "ROLLBACK") Row0
+  ∷ Connection
+  → PG Unit
+  → PG Unit
+withRollback conn action =
+    begin *> action *> rollback
+    where
+        begin = execute conn (Query "BEGIN TRANSACTION") Row0
+        rollback = execute conn (Query "ROLLBACK TRANSACTION") Row0
 
 test
-  ∷ ∀ a
-   . Connection
+  ∷ Connection
   → String
-  → Aff a
-  → Free TestF Unit
-test conn t a = Test.Unit.test t (withRollback conn a)
+  → PG Unit
+  → TestSuite
+test conn name action =
+    Test.Unit.test name $ checkPGErrors $ withRollback conn action
+
+transactionTest
+  ∷ String
+  → PG Unit
+  → TestSuite
+transactionTest name action =
+    Test.Unit.test name $ checkPGErrors $ action
+
+checkPGErrors :: PG Unit -> Aff Unit
+checkPGErrors action = do
+    runExceptT action >>= case _ of
+        Left pgError -> Test.Unit.failure "Unexpected PostgreSQL error occured"
+        Right _ -> pure unit
 
 now ∷ Effect Instant
 now = unsafePartial $ (fromJust <<< toInstant) <$> JSDate.now
@@ -66,11 +83,11 @@ main ∷ Effect Unit
 main = do
   void $ launchAff do
     -- Running guide from README
-    Example.run
+    --Example.run
 
-    -- Acctual test suite
+    -- Actual test suite
     pool <- newPool config
-    withConnection pool \conn -> do
+    checkPGErrors $ withConnection pool \conn -> do
       execute conn (Query """
         CREATE TEMPORARY TABLE foods (
           name text NOT NULL,
@@ -92,7 +109,7 @@ main = do
       """) Row0
 
       liftEffect $ runTest $ do
-        suite "Postgresql client" $ do
+        suite "PostgreSQL client" $ do
           let
             testCount n = do
               count <- scalar conn (Query """
@@ -101,7 +118,7 @@ main = do
               """) (Row1 n)
               liftEffect <<< assert $ count == Just true
 
-          Test.Unit.test "transaction commit" $ do
+          transactionTest "transaction commit" do
             withTransaction conn do
               execute conn (Query """
                 INSERT INTO foods (name, delicious, price)
@@ -113,14 +130,37 @@ main = do
               DELETE FROM foods
             """) Row0
 
-          Test.Unit.test "transaction rollback" $ do
+          transactionTest "transaction rollback on PostgreSQL error" $ do
             _ <- try $ withTransaction conn do
               execute conn (Query """
                 INSERT INTO foods (name, delicious, price)
                 VALUES ($1, $2, $3)
               """) (Row3 "pork" true (D.fromString "8.30"))
               testCount 1
-              throwError $ error "fail"
+
+              -- invalid SQL query --> PGError is thrown
+              execute conn (Query "foo bar") Row0
+
+            -- transaction should've been rolled back
+            testCount 0
+
+          transactionTest "transaction rollback on JavaScript exception" $ do
+            result <- lift $ try $ runExceptT $ withTransaction conn do
+              execute conn (Query """
+                INSERT INTO foods (name, delicious, price)
+                VALUES ($1, $2, $3)
+              """) (Row3 "pork" true (D.fromString "8.30"))
+              testCount 1
+
+              -- throw a JavaScript error
+              lift $ throwError $ error "fail"
+
+            -- make sure the JavaScript error was thrown
+            liftEffect $ case result of
+                Left jsErr -> assert (message jsErr == "fail")
+                Right _ -> assert false
+
+            -- transaction should've been rolled back
             testCount 0
 
           test conn "usage of rows represented by nested tuples" $ do
@@ -201,14 +241,13 @@ main = do
             """) Row0
             liftEffect <<< assert $ sauerkrautPrice == [Row1 (D.fromString "3.30")]
 
-          test conn "constraint failure" $ do
-            withTransaction conn $ do
-              result <- try $ execute conn (Query """
-                INSERT INTO foods (name)
-                VALUES ($1)
-              """) (Row1 "pork")
-              liftEffect <<< assert $ isLeft result
-            testCount 0
+          transactionTest "integrity error handling" $ do
+            withRollback conn do
+              result <- onIntegrityError (pure "integrity error was handled") do
+                insertFood
+                insertFood
+                pure "integrity error was not handled"
+              liftEffect $ assert $ result == "integrity error was handled"
 
           test conn "handling date value" $ do
             let
@@ -226,7 +265,7 @@ main = do
               FROM dates
               ORDER BY date ASC
             """) Row0
-            equal 3 (length dates)
+            pgEqual  3 (length dates)
             liftEffect <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip dates [d1, d2, d3])
 
           test conn "handling json and jsonb value" $ do
@@ -257,8 +296,23 @@ main = do
               FROM timestamps
               ORDER BY timestamp ASC
             """) Row0
-            equal 3 (length timestamps)
+            pgEqual 3 (length timestamps)
             liftEffect <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip timestamps [jsd1, jsd2, jsd3])
+
+        suite "PostgreSQL connection errors" $ do
+          let doNothing _ = pure unit
+
+          Test.Unit.test "connection refused" do
+            testPool <- newPool cannotConnectConfig
+            runExceptT (withConnection testPool doNothing) >>= case _ of
+              Left (ConnectionError cause) -> equal cause "ECONNREFUSED"
+              _ -> Test.Unit.failure "foo"
+
+          Test.Unit.test "no such database" do
+            testPool <- newPool noSuchDatabaseConfig
+            runExceptT (withConnection testPool doNothing) >>= case _ of
+              Left (ProgrammingError { code, message }) -> equal code "3D000"
+              _ -> Test.Unit.failure "PostgreSQL error was expected"
 
 config :: PoolConfiguration
 config =
@@ -270,3 +324,11 @@ config =
   , max: Nothing
   , idleTimeoutMillis: Just 1000
   }
+
+noSuchDatabaseConfig :: PoolConfiguration
+noSuchDatabaseConfig =
+  config { database = "this-database-does-not-exist" }
+
+cannotConnectConfig :: PoolConfiguration
+cannotConnectConfig =
+  config { host = Just "127.0.0.1", port = Just 45287 }
