@@ -91,9 +91,9 @@ newtype Query i o = Query String
 derive instance newtypeQuery :: Newtype (Query i o) _
 
 -- | Create a new connection pool.
-newPool :: PoolConfiguration -> Aff Pool
+newPool :: PoolConfiguration -> Effect Pool
 newPool cfg =
-    liftEffect <<< ffiNewPool $ cfg'
+    ffiNewPool $ cfg'
     where
     cfg' =
         { user: toNullable cfg.user
