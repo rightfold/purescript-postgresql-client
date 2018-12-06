@@ -27,12 +27,18 @@ import Effect.Class (liftEffect)
 import Test.Assert (assert)
 ```
 
-The whole API for interaction with postgres is performed asynchronously in `Aff`. To be honest
-it is `type PG a = ExceptT PGError Aff a` so you can easily catch database related errors in
-a sane (read typed) manner. The only function which is done in plain `Effect` is `newPool`.
+The whole API for interaction with PostgreSQL is performed asynchronously in `Aff`
+(the only function which runs in plain `Effect` is `newPool`). To be honest we
+are wrapping `Aff` in `ExceptT` so you can easily handle database related errors
+in a sane manner:
 
-Don't be scarred you can turn `PG a` into `Aff (Either PGError a)` just running single function
-`runExceptT`.
+  ```purescript
+  type PG a = ExceptT PGError Aff a
+  ```
+
+Don't be scarred by this `PG` type alias. It just wraps every db result in `Either`.
+You can turn `PG a` into the `Aff (Either PGError a)` by just running a single
+function - `runExceptT`.
 
 We assume here that postgres is running on a standard local port
 with `ident` authentication so configuration can be nearly empty (`defaultPoolConfiguration`).
