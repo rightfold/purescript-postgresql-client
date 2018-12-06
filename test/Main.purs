@@ -29,7 +29,7 @@ import Foreign.Object (Object, fromFoldable)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
 import Test.Assert (assert)
-import Test.Example (run) as Example
+import Test.README (run) as README
 import Test.Unit (TestSuite, suite)
 import Test.Unit as Test.Unit
 import Test.Unit.Assert (equal)
@@ -83,10 +83,10 @@ main ∷ Effect Unit
 main = do
   void $ launchAff do
     -- Running guide from README
-    -- Example.run
+    void $ runExceptT $ README.run
 
     -- Actual test suite
-    pool <- newPool config
+    pool <- liftEffect $ newPool config
     checkPGErrors $ withConnection pool \conn -> do
       execute conn (Query """
         CREATE TEMPORARY TABLE foods (
@@ -312,13 +312,13 @@ main = do
           let doNothing _ = pure unit
 
           Test.Unit.test "connection refused" do
-            testPool <- newPool cannotConnectConfig
+            testPool <- liftEffect $ newPool cannotConnectConfig
             runExceptT (withConnection testPool doNothing) >>= case _ of
               Left (ConnectionError cause) -> equal cause "ECONNREFUSED"
               _ -> Test.Unit.failure "foo"
 
           Test.Unit.test "no such database" do
-            testPool <- newPool noSuchDatabaseConfig
+            testPool <- liftEffect $ newPool noSuchDatabaseConfig
             runExceptT (withConnection testPool doNothing) >>= case _ of
               Left (ProgrammingError { code, message }) -> equal code "3D000"
               _ -> Test.Unit.failure "PostgreSQL error was expected"

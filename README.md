@@ -14,21 +14,25 @@ This guide is a literate Purescript file which is extracted into testing module 
 Let's start with imports.
 
 ```purescript
-module Test.Example where
+module Test.README where
 
 import Prelude
 
-import Database.PostgreSQL (defaultPoolConfiguration, command, execute, newPool, query, Query(Query), withConnection, withTransaction)
+import Database.PostgreSQL (defaultPoolConfiguration, command, execute, newPool, PG, query, Query(Query), withConnection, withTransaction)
 import Database.PostgreSQL.Row (Row0(Row0), Row3(Row3))
 import Data.Decimal as Decimal
 import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested ((/\))
-import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Test.Assert (assert)
 ```
 
-The whole API for interaction with postgres is performed asynchronously in `Aff`.
+The whole API for interaction with postgres is performed asynchronously in `Aff`. To be honest
+it is `type PG a = ExceptT PGError Aff a` so you can easily catch database related errors in
+a sane (read typed) manner. The only function which is done in plain `Effect` is `newPool`.
+
+Don't be scarred you can turn `PG a` into `Aff (Either PGError a)` just running single function
+`runExceptT`.
 
 We assume here that postgres is running on a standard local port
 with `ident` authentication so configuration can be nearly empty (`defaultPoolConfiguration`).
@@ -38,10 +42,10 @@ is run by our test suite and we want to exit after execution quickly ;-)
 
 
 ```purescript
-run ∷ Aff Unit
+run ∷ PG Unit
 run = do
 
-  pool <- newPool ((defaultPoolConfiguration "purspg") { idleTimeoutMillis = Just 1000 })
+  pool <- liftEffect $ newPool ((defaultPoolConfiguration "purspg") { idleTimeoutMillis = Just 1000 })
   withConnection pool \conn -> do
 ```
 

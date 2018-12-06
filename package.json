@@ -1,18 +1,15 @@
 {
   "name": "purescript-postgresql-client",
   "dependencies": {
-    "bower-dependency-tree": "^0.1.2",
     "decimal.js": "^10.0.0",
-    "g": "^2.0.1",
-    "global": "^4.3.2",
-    "pg": "^6.1.2",
-    "pulp": "^12.3.0"
+    "pg": "^6.1.2"
   },
   "devDependencies": {
-    "literate-purescript": "^0.1.2"
+    "paluh-litps": "^0.1.4",
+    "pulp": "^12.3.0"
   },
   "scripts": {
-    "pretest": "litps compile --file README.md; mv README.purs test/Example.purs",
+    "pretest": "paluh-litps compile --file README.md; mv README.purs test/README.purs",
     "test": "pulp test"
   }
 }
