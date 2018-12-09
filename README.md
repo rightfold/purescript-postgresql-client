@@ -44,14 +44,15 @@ We assume here that postgres is running on a standard local port
 with `ident` authentication so configuration can be nearly empty (`defaultPoolConfiguration`).
 It requires only database name which we pass to `newPool` function.
 We setup also `idleTimeoutMillis` value because this code
-is run by our test suite and we want to exit after execution quickly ;-)
+is run by our test suite and we want to exit after its execution quickly ;-)
 
 
 ```purescript
 run ∷ PG Unit
 run = do
 
-  pool <- liftEffect $ newPool ((defaultPoolConfiguration "purspg") { idleTimeoutMillis = Just 1000 })
+  pool <- liftEffect $ newPool
+    ((defaultPoolConfiguration "purspg") { idleTimeoutMillis = Just 1000 })
   withConnection pool \conn -> do
 ```
 

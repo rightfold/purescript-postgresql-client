@@ -1,24 +1,24 @@
-module Database.PostgreSQL
-( module Row
-, module Value
-, PG
-, PGError(..)
-, PGErrorDetail
-, Database
-, PoolConfiguration
-, Pool
-, Connection
-, Query(..)
-, newPool
-, withConnection
-, withTransaction
-, defaultPoolConfiguration
-, command
-, execute
-, query
-, scalar
-, onIntegrityError
-) where
+module Database.PostgreSQL where
+-- ( module Row
+-- , module Value
+-- , PG
+-- , PGError(..)
+-- , PGErrorDetail
+-- , Database
+-- , PoolConfiguration
+-- , Pool
+-- , Connection
+-- , Query(..)
+-- , newPool
+-- , withConnection
+-- , withTransaction
+-- , defaultPoolConfiguration
+-- , command
+-- , execute
+-- , query
+-- , scalar
+-- , onIntegrityError
+-- ) where
 
 import Prelude
 
@@ -26,7 +26,8 @@ import Control.Monad.Error.Class (catchError, throwError, try)
 import Control.Monad.Except.Trans (ExceptT, except, runExceptT)
 import Control.Monad.Trans.Class (lift)
 import Data.Array (head)
-import Data.Either (Either(..))
+import Data.Bifunctor (lmap)
+import Data.Either (Either(..), either, hush)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Maybe (Maybe(..), maybe)
@@ -34,7 +35,7 @@ import Data.Newtype (class Newtype)
 import Data.Nullable (Nullable, toMaybe, toNullable)
 import Data.String (Pattern(..))
 import Data.String as String
-import Data.Traversable (traverse)
+import Data.Traversable (sequence, traverse)
 import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), Row10(..), Row11(..), Row12(..), Row13(..), Row14(..), Row15(..), Row16(..), Row17(..), Row18(..), Row19(..), Row2(..), Row3(..), Row4(..), Row5(..), Row6(..), Row7(..), Row8(..), Row9(..), fromSQLRow, toSQLRow) as Row
 import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), fromSQLRow, toSQLRow)
 import Database.PostgreSQL.Value (class FromSQLValue)
@@ -47,15 +48,6 @@ import Effect.Exception (Error)
 import Foreign (Foreign)
 
 type Database = String
-
--- | PostgreSQL computations run in the `PG` monad. It's just `Aff` stacked with
--- | `ExceptT` to provide error handling.
--- |
--- | Errors originating from database queries or connection to the database are
--- | modeled with the `PGError` type. Use `runExceptT` from
--- | `Control.Monad.Except.Trans` to turn a `PG a` action into `Aff (Either
--- | PGError a)`.
-type PG a = ExceptT PGError Aff a
 
 -- | PostgreSQL connection pool configuration.
 type PoolConfiguration =
@@ -123,18 +115,18 @@ foreign import ffiNewPool
 -- | Run an action with a connection. The connection is released to the pool
 -- | when the action returns.
 withConnection
-    :: ∀ a
+    :: forall a
      . Pool
-    -> (Connection -> PG a)
-    -> PG a
+    -> (Either PGError Connection -> Aff a)
+    -> Aff a
 withConnection p k =
-    except <=< lift $ bracket (connect p) cleanup run
+    bracket (connect p) cleanup run
     where
     cleanup (Left _) = pure unit
     cleanup (Right { done }) = liftEffect done
 
-    run (Left err) = pure $ Left err
-    run (Right { connection }) = runExceptT $ k connection
+    run (Left err) = k (Left err)
+    run (Right { connection }) = k (Right connection)
 
 connect
     :: Pool
@@ -152,92 +144,89 @@ type ConnectResult =
     }
 
 foreign import ffiConnect
-    :: ∀ a
+    :: forall a
      . { nullableLeft :: Error -> Nullable (Either PGError ConnectResult)
        , right :: a -> Either PGError ConnectResult
        }
     -> Pool
     -> EffectFnAff (Either PGError ConnectResult)
 
--- | Run an action within a transaction. The transaction is committed if the
--- | action returns cleanly, and rolled back if the action throws (either a
--- | `PGError` or a JavaScript exception in the Aff context). If you want to
--- | change the transaction mode, issue a separate `SET TRANSACTION` statement
--- | within the transaction.
-withTransaction
-    :: ∀ a
-     . Connection
-    -> PG a
-    -> PG a
-withTransaction conn action =
-    begin *> lift (try $ runExceptT action) >>= case _ of
-        Left jsErr -> do
-            rollback
-            lift $ throwError jsErr
-        Right (Left pgErr) -> do
-            rollback
-            throwError pgErr
-        Right (Right value) -> do
-            commit
-            pure value
-
-    where
-    begin = execute conn (Query "BEGIN TRANSACTION") Row0
-    commit = execute conn (Query "COMMIT TRANSACTION") Row0
-    rollback = execute conn (Query "ROLLBACK TRANSACTION") Row0
+-- -- | Run an action within a transaction. The transaction is committed if the
+-- -- | action returns cleanly, and rolled back if the action throws (either a
+-- -- | `PGError` or a JavaScript exception in the Aff context). If you want to
+-- -- | change the transaction mode, issue a separate `SET TRANSACTION` statement
+-- -- | within the transaction.
+-- withTransaction
+--     :: forall a
+--      . Connection
+--     -> (Maybe PGError -> Aff a)
+--     -> Aff a
+-- withTransaction conn action =
+--     begin *> lift (try $ runExceptT action) >>= case _ of
+--         Left jsErr -> do
+--             rollback
+--             lift $ throwError jsErr
+--         Right (Left pgErr) -> do
+--             rollback
+--             throwError pgErr
+--         Right (Right value) -> do
+--             commit
+--             pure value
+-- 
+--     where
+--     begin = execute conn (Query "BEGIN TRANSACTION") Row0
+--     commit = execute conn (Query "COMMIT TRANSACTION") Row0
+--     rollback = execute conn (Query "ROLLBACK TRANSACTION") Row0
 
 -- | Execute a PostgreSQL query and discard its results.
 execute
-    :: ∀ i o
+    :: forall i o
      . (ToSQLRow i)
     => Connection
     -> Query i o
     -> i
-    -> PG Unit
+    -> Aff (Maybe PGError)
 execute conn (Query sql) values =
-    void $ unsafeQuery conn sql (toSQLRow values)
+    hush <<< either Right Left <$> unsafeQuery conn sql (toSQLRow values)
 
 -- | Execute a PostgreSQL query and return its results.
 query
-    :: ∀ i o
+    :: forall i o
      . ToSQLRow i
     => FromSQLRow o
     => Connection
     -> Query i o
     -> i
-    -> PG (Array o)
+    -> Aff (Either PGError (Array o))
 query conn (Query sql) values = do
-    _.rows <$> unsafeQuery conn sql (toSQLRow values)
-    >>= traverse (fromSQLRow >>> case _ of
-          Right row -> pure row
-          Left  msg -> throwError $ ConversionError msg)
+    r <- unsafeQuery conn sql (toSQLRow values)
+    pure $ r >>= _.rows >>> traverse (fromSQLRow >>> lmap ConversionError)
 
 -- | Execute a PostgreSQL query and return the first field of the first row in
 -- | the result.
 scalar
-    :: ∀ i o
+    :: forall i o
      . ToSQLRow i
     => FromSQLValue o
     => Connection
     -> Query i (Row1 o)
     -> i
-    -> PG (Maybe o)
+    -> Aff (Either PGError (Maybe o))
 scalar conn sql values =
-    query conn sql values
-    <#> map (case _ of Row1 a -> a) <<< head
+    query conn sql values <#> map (head >>> map (case _ of Row1 a -> a))
 
 -- | Execute a PostgreSQL query and return its command tag value
 -- | (how many rows were affected by the query). This may be useful
 -- | for example with `DELETE` or `UPDATE` queries.
 command
-    :: ∀ i
+    :: forall i
      . ToSQLRow i
     => Connection
     -> Query i Int
     -> i
-    -> PG Int
+    -> Aff (Either PGError Int)
 command conn (Query sql) values =
-    _.rowCount <$> unsafeQuery conn sql (toSQLRow values)
+    map _.rowCount <$> unsafeQuery conn sql (toSQLRow values)
 
 type QueryResult =
     { rows :: Array (Array Foreign)
@@ -248,9 +237,9 @@ unsafeQuery
     :: Connection
     -> String
     -> Array Foreign
-    -> PG QueryResult
+    -> Aff (Either PGError QueryResult)
 unsafeQuery c s =
-    except <=< lift <<< fromEffectFnAff <<< ffiUnsafeQuery p c s
+    fromEffectFnAff <<< ffiUnsafeQuery p c s
     where
     p =
         { nullableLeft: toNullable <<< map Left <<< convertError
@@ -340,11 +329,11 @@ convertError err =
       prefix p =
           maybe false (_ == 0) <<< String.indexOf (Pattern p)
 
-onIntegrityError :: forall a. PG a -> PG a -> PG a
-onIntegrityError errorResult db =
-    catchError db handleError
-    where
-    handleError e =
-        case e of
-            IntegrityError _ -> errorResult
-            _ -> throwError e
+-- onIntegrityError :: forall a. PG a -> PG a -> PG a
+-- onIntegrityError errorResult db =
+--     catchError db handleError
+--     where
+--     handleError e =
+--         case e of
+--             IntegrityError _ -> errorResult
+--             _ -> throwError e
