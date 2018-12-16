@@ -18,7 +18,7 @@ module Test.README where
 
 import Prelude
 
-import Database.PostgreSQL (defaultPoolConfiguration, command, execute, newPool, PG, query, Query(Query), withConnection, withTransaction)
+import Database.PostgreSQL.PG (defaultPoolConfiguration, command, execute, newPool, PG, query, Query(Query), withConnection, withTransaction)
 import Database.PostgreSQL.Row (Row0(Row0), Row3(Row3))
 import Data.Decimal as Decimal
 import Data.Maybe (Maybe(..))

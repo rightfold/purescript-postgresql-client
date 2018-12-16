@@ -1,30 +1,26 @@
-module Database.PostgreSQL where
--- ( module Row
--- , module Value
--- , PG
--- , PGError(..)
--- , PGErrorDetail
--- , Database
--- , PoolConfiguration
--- , Pool
--- , Connection
--- , Query(..)
--- , newPool
--- , withConnection
--- , withTransaction
--- , defaultPoolConfiguration
--- , command
--- , execute
--- , query
--- , scalar
--- , onIntegrityError
--- ) where
+module Database.PostgreSQL
+( module Row
+, module Value
+, PGError(..)
+, PGErrorDetail
+, Database
+, PoolConfiguration
+, Pool
+, Connection
+, Query(..)
+, newPool
+, withConnection
+, withTransaction
+, defaultPoolConfiguration
+, command
+, execute
+, query
+, scalar
+) where
 
 import Prelude
 
-import Control.Monad.Error.Class (catchError, throwError, try)
-import Control.Monad.Except.Trans (ExceptT, except, runExceptT)
-import Control.Monad.Trans.Class (lift)
+import Control.Monad.Error.Class (catchError, throwError)
 import Data.Array (head)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), either, hush)
@@ -35,7 +31,7 @@ import Data.Newtype (class Newtype)
 import Data.Nullable (Nullable, toMaybe, toNullable)
 import Data.String (Pattern(..))
 import Data.String as String
-import Data.Traversable (sequence, traverse)
+import Data.Traversable (traverse)
 import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), Row10(..), Row11(..), Row12(..), Row13(..), Row14(..), Row15(..), Row16(..), Row17(..), Row18(..), Row19(..), Row2(..), Row3(..), Row4(..), Row5(..), Row6(..), Row7(..), Row8(..), Row9(..), fromSQLRow, toSQLRow) as Row
 import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), fromSQLRow, toSQLRow)
 import Database.PostgreSQL.Value (class FromSQLValue)
@@ -151,32 +147,30 @@ foreign import ffiConnect
     -> Pool
     -> EffectFnAff (Either PGError ConnectResult)
 
--- -- | Run an action within a transaction. The transaction is committed if the
--- -- | action returns cleanly, and rolled back if the action throws (either a
--- -- | `PGError` or a JavaScript exception in the Aff context). If you want to
--- -- | change the transaction mode, issue a separate `SET TRANSACTION` statement
--- -- | within the transaction.
--- withTransaction
---     :: forall a
---      . Connection
---     -> (Maybe PGError -> Aff a)
---     -> Aff a
--- withTransaction conn action =
---     begin *> lift (try $ runExceptT action) >>= case _ of
---         Left jsErr -> do
---             rollback
---             lift $ throwError jsErr
---         Right (Left pgErr) -> do
---             rollback
---             throwError pgErr
---         Right (Right value) -> do
---             commit
---             pure value
--- 
---     where
---     begin = execute conn (Query "BEGIN TRANSACTION") Row0
---     commit = execute conn (Query "COMMIT TRANSACTION") Row0
---     rollback = execute conn (Query "ROLLBACK TRANSACTION") Row0
+-- | Run an action within a transaction. The transaction is committed if the
+-- | action returns cleanly, and rolled back if the action throws (either a
+-- | `PGError` or a JavaScript exception in the Aff context). If you want to
+-- | change the transaction mode, issue a separate `SET TRANSACTION` statement
+-- | within the transaction.
+withTransaction
+    :: forall a
+     . Connection
+    -> Aff a
+    -> Aff (Either PGError a)
+withTransaction conn action =
+    begin >>= case _ of
+      Nothing → do
+        a ← action `catchError` \jsErr → do
+          void $ rollback
+          throwError jsErr
+        commit >>= case _ of
+          Just pgError → pure (Left pgError)
+          Nothing → pure (Right a)
+      Just pgError → pure (Left pgError)
+    where
+    begin = execute conn (Query "BEGIN TRANSACTION") Row0
+    commit = execute conn (Query "COMMIT TRANSACTION") Row0
+    rollback = execute conn (Query "ROLLBACK TRANSACTION") Row0
 
 -- | Execute a PostgreSQL query and discard its results.
 execute
