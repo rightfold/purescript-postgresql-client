@@ -5,6 +5,7 @@ module Database.PostgreSQL.PG
 , PG
 , command
 , execute
+, hoistPG
 , query
 , onIntegrityError
 , scalar
@@ -40,11 +41,11 @@ type Database = String
 -- | PGError a)`.
 type PG a = ExceptT PGError Aff a
 
-hoistPG ∷ ∀ m. MonadAff m ⇒ PG ~> ExceptT PGError m
+hoistPG :: forall m. MonadAff m => PG ~> ExceptT PGError m
 hoistPG m = ExceptT $ liftAff $
   runExceptT m >>= case _ of
-    Right a → pure (Right a)
-    Left pgError → pure (Left pgError)
+    Right a -> pure (Right a)
+    Left pgError -> pure (Left pgError)
 
 -- | Run an action with a connection. The connection is released to the pool
 -- | when the action returns.
