@@ -27,6 +27,7 @@ import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row1)
 import Database.PostgreSQL.Value (class FromSQLValue)
 import Database.PostgreSQL.Value (class FromSQLValue, class ToSQLValue, fromSQLValue, instantFromString, instantToString, null, toSQLValue, unsafeIsBuffer) as Value
 import Effect.Aff (Aff)
+import Effect.Aff.Class (class MonadAff, liftAff)
 
 type Database = String
 
@@ -38,6 +39,12 @@ type Database = String
 -- | `Control.Monad.Except.Trans` to turn a `PG a` action into `Aff (Either
 -- | PGError a)`.
 type PG a = ExceptT PGError Aff a
+
+hoistPG ∷ ∀ m. MonadAff m ⇒ PG ~> ExceptT PGError m
+hoistPG m = ExceptT $ liftAff $
+  runExceptT m >>= case _ of
+    Right a → pure (Right a)
+    Left pgError → pure (Left pgError)
 
 -- | Run an action with a connection. The connection is released to the pool
 -- | when the action returns.
@@ -118,3 +125,5 @@ onIntegrityError errorResult db =
         case e of
             IntegrityError _ -> errorResult
             _ -> throwError e
+
+
