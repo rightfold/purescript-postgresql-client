@@ -26,6 +26,7 @@ import Effect.Aff (Aff, error, launchAff)
 import Effect.Class (liftEffect)
 import Effect.Exception (message)
 import Foreign.Object (Object, fromFoldable)
+import Global.Unsafe (unsafeStringify)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
 import Test.Assert (assert)
@@ -66,7 +67,7 @@ transactionTest name action =
 checkPGErrors :: PG Unit -> Aff Unit
 checkPGErrors action = do
     runExceptT action >>= case _ of
-        Left pgError -> Test.Unit.failure "Unexpected PostgreSQL error occured"
+        Left pgError -> Test.Unit.failure ("Unexpected PostgreSQL error occured:" <> unsafeStringify pgError)
         Right _ -> pure unit
 
 now ∷ Effect Instant
