@@ -16,7 +16,7 @@ module Database.PostgreSQL.PG
 
 import Prelude
 
-import Control.Monad.Error.Class (catchError, throwError)
+import Control.Monad.Error.Class (class MonadError, catchError, throwError)
 import Control.Monad.Except (ExceptT(..))
 import Control.Monad.Except.Trans (ExceptT, runExceptT)
 import Data.Either (Either(..))
@@ -42,13 +42,14 @@ type Database = String
 -- | PGError a)`.
 type PG a = ExceptT PGError Aff a
 
-hoistWith :: forall e m. MonadAff m => (PGError -> e) -> PG ~> ExceptT e m
-hoistWith f m = ExceptT $ liftAff $
-  runExceptT m >>= case _ of
-    Right a -> pure (Right a)
-    Left pgError -> pure (Left (f pgError))
+hoistWith :: forall e m. MonadAff m => MonadError e m => (PGError -> e) -> PG ~> ExceptT e m
+hoistWith f m = do
+  result <- liftAff $ runExceptT m
+  case result of
+    Right a -> pure a
+    Left pgError -> throwError (f pgError)
 
-hoist :: forall m. MonadAff m => PG ~> ExceptT PGError m
+hoist :: forall m. MonadAff m => MonadError PGError m => PG ~> ExceptT PGError m
 hoist = hoistWith identity
 
 -- | Run an action with a connection. The connection is released to the pool
