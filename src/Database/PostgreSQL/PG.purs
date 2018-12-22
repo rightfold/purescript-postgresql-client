@@ -42,14 +42,14 @@ type Database = String
 -- | PGError a)`.
 type PG a = ExceptT PGError Aff a
 
-hoistWith :: forall e m. MonadAff m => MonadError e m => (PGError -> e) -> PG ~> ExceptT e m
+hoistWith :: forall e m. MonadAff m => MonadError e m => (PGError -> e) -> PG ~> m
 hoistWith f m = do
   result <- liftAff $ runExceptT m
   case result of
     Right a -> pure a
     Left pgError -> throwError (f pgError)
 
-hoist :: forall m. MonadAff m => MonadError PGError m => PG ~> ExceptT PGError m
+hoist :: forall m. MonadAff m => MonadError PGError m => PG ~> m
 hoist = hoistWith identity
 
 -- | Run an action with a connection. The connection is released to the pool
