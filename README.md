@@ -28,22 +28,21 @@ import Test.Assert (assert)
 ```
 
 The whole API for interaction with PostgreSQL is performed asynchronously in `Aff`
-(the only function which runs in plain `Effect` is `newPool`). To be honest we
-are wrapping `Aff` in `ExceptT` so you can easily handle database related errors
-in a sane manner:
+(the only function which runs in plain `Effect` is `newPool`). Core library
+functions usually results in somthing like `Aff (Either PGError a)` which can be easily
+wrapped by user into `ExceptT` or any other custom monad stack. To be honest we provides predifined `ExceptT`
+versions of functions in `Database.PostgreSQL.PG` along with some `hoist*` helpers.
+We are going to work with `PG` type in this tutorial but please don't consider it as the only option
+if you encounter any troubles integrating it into your own app monad stack.
 
   ```purescript
   type PG a = ExceptT PGError Aff a
   ```
 
-Don't be scarred by this `PG` type alias. It just wraps every db result in `Either`.
-You can turn `PG a` into the `Aff (Either PGError a)` by just running a single
-function - `runExceptT`.
-
-We assume here that postgres is running on a standard local port
+We assume here that Postgres is running on a standard local port
 with `ident` authentication so configuration can be nearly empty (`defaultPoolConfiguration`).
 It requires only database name which we pass to `newPool` function.
-We setup also `idleTimeoutMillis` value because this code
+Additionally we pass `idleTimeoutMillis` value because this code
 is run by our test suite and we want to exit after its execution quickly ;-)
 
 
@@ -83,7 +82,7 @@ Please notice that we are passing a tuple of the arguments to this query
 using dedicated constructor. In this case `Row3`.  This library provides types
 from `Row0` to `Row19` and they are wrappers which provide instances for
 automatic conversions from and to SQL values.
-For details please check following classes `ToSQLRow`, `ToSQLValue`,
+For details please investigate following classes `ToSQLRow`, `ToSQLValue`,
 `FromSQLRow` and `FromSQLValue`.
 
 ```purescript
@@ -145,7 +144,7 @@ To run suite please:
 
 ## Generating SQL Queries
 
-The purspgpp preprocessor has been replaced by [sqltopurs], which is a code
+The `purspg` preprocessor has been replaced by `sqltopurs`, which is a code
 generator instead of a preprocessor, and easier to use.
 
 [sqltopurs]: https://github.com/rightfold/sqltopurs
