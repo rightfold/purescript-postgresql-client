@@ -109,8 +109,8 @@ else instance fromSQLValueDecimal :: FromSQLValue Decimal where
         s <- lmap show $ runExcept (readString v)
         note ("Decimal literal parsing failed: " <> s) (Decimal.fromString s)
 
-else instance fromSQLValueNewtype ∷ (Newtype a b, FromSQLValue b) ⇒ FromSQLValue a where
-    fromSQLValue = map wrap <<< fromSQLValue
+newtypeFromSQLValue ∷ ∀ a b. Newtype a b ⇒ FromSQLValue b ⇒ Foreign → Either String a
+newtypeFromSQLValue = map wrap <<< fromSQLValue
 
 instance toSQLValueBoolean :: ToSQLValue Boolean where
     toSQLValue = unsafeToForeign
@@ -164,9 +164,8 @@ else instance toSQLValueObject ∷ ToSQLValue a ⇒ ToSQLValue (Object a) where
 else instance toSQLValueDecimal :: ToSQLValue Decimal where
     toSQLValue = Decimal.toString >>> unsafeToForeign
 
-else instance toSQLValueNewtype ∷ (Newtype a b, ToSQLValue b) ⇒ ToSQLValue a where
-    toSQLValue = unwrap >>> toSQLValue
-
+newtypeToSQLValue ∷ ∀ a b. Newtype a b ⇒ ToSQLValue b ⇒ a → Foreign
+newtypeToSQLValue = unwrap >>> toSQLValue
 
 foreign import null :: Foreign
 foreign import instantToString :: Instant -> Foreign
