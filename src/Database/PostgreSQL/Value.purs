@@ -26,7 +26,7 @@ import Data.String (Pattern(..), split)
 import Data.Time.Duration (Milliseconds(..))
 import Data.Traversable (sequence, traverse)
 import Foreign (Foreign, ForeignError(..), MultipleErrors, isNull, readArray, readBoolean, readChar, readInt, readNumber, readString, renderForeignError, unsafeFromForeign, unsafeToForeign)
-import Foreign.Internal (readObject)
+import Foreign.Generic.Internal (readObject)
 import Foreign.Object (Object)
 
 -- | Convert things to SQL values.
