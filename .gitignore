@@ -1,5 +1,6 @@
 /.pulp-cache
 /.spago
+/.psc-*
 /bower_components
 /node_modules
 /output
