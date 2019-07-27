@@ -1,6 +1,14 @@
+/* global exports, require */
+/* jshint -W097 */
+
 'use strict';
 
 var pg = require('pg');
+
+// pg does strange thing converting DATE
+// value to js Date, so we have
+// to prevent this craziness
+pg.types.setTypeParser(1082 /* DATE_OID */, function(dateString) { return dateString; });
 
 exports.ffiNewPool = function(config) {
     return function() {
@@ -19,9 +27,9 @@ exports.ffiConnect = function (config) {
                     }
                 }));
             }).catch(function(err) {
-                var pgError = config.nullableLeft(err)
+                var pgError = config.nullableLeft(err);
                 if (pgError) {
-                    onSuccess(pgError)
+                    onSuccess(pgError);
                 } else {
                     onError(err);
                 }
@@ -45,11 +53,11 @@ exports.ffiUnsafeQuery = function(config) {
                         values: values,
                         rowMode: 'array',
                     }).then(function(result) {
-                        onSuccess(config.right(result))
+                        onSuccess(config.right(result));
                     }).catch(function(err) {
                         var pgError = config.nullableLeft(err);
                         if (pgError) {
-                            onSuccess(pgError)
+                            onSuccess(pgError);
                         } else {
                             onError(err);
                         }
@@ -67,7 +75,7 @@ exports.ffiUnsafeQuery = function(config) {
 
 exports.ffiSQLState = function (error) {
     return error.code || null;
-}
+};
 
 exports.ffiErrorDetail = function (error) {
     return {
@@ -89,4 +97,4 @@ exports.ffiErrorDetail = function (error) {
         line: error.line || '',
         routine: error.routine || ''
     };
-}
+};
