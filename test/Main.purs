@@ -20,7 +20,7 @@ import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
-import Database.PostgreSQL.PG (Connection, PG, PGError(..), PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), command, execute, newPool, onIntegrityError, query, scalar, withConnection, withTransaction)
+import Database.PostgreSQL.PG (Connection, PGError(..), Pool, PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), command, execute, newPool, onIntegrityError, query, scalar)
 import Effect (Effect)
 import Effect.Aff (Aff, error, launchAff)
 import Effect.Class (liftEffect)
@@ -30,11 +30,19 @@ import Global.Unsafe (unsafeStringify)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
 import Test.Assert (assert)
-import Test.README (run) as README
+import Test.README (run, PG, withConnection, withTransaction) as README
 import Test.Unit (TestSuite, suite)
 import Test.Unit as Test.Unit
 import Test.Unit.Assert (equal)
 import Test.Unit.Main (runTest)
+
+type PG a = README.PG a
+
+withConnection :: forall a. Pool -> (Connection -> PG a) -> PG a
+withConnection = README.withConnection
+
+withTransaction :: forall a. Connection -> PG a -> PG a
+withTransaction = README.withTransaction
 
 pgEqual :: forall a. Eq a => Show a => a -> a -> PG Unit
 pgEqual a b = lift $ equal a b
