@@ -18,11 +18,14 @@ module Test.README where
 
 import Prelude
 
-import Database.PostgreSQL.PG (defaultPoolConfiguration, command, execute, newPool, query, Query(Query), withConnection, withTransaction)
+import Control.Monad.Except.Trans (ExceptT, runExceptT)
+import Database.PostgreSQL.PG (defaultPoolConfiguration, PGError, command, execute, newPool, Pool, Connection, query, Query(Query))
+import Database.PostgreSQL.PG as PG
 import Database.PostgreSQL.Row (Row0(Row0), Row3(Row3))
 import Data.Decimal as Decimal
 import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested ((/\))
+import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Test.Assert (assert)
 ```
@@ -30,14 +33,21 @@ import Test.Assert (assert)
 The whole API for interaction with PostgreSQL is performed asynchronously in `Aff`
 (the only function which runs in plain `Effect` is `newPool`). Core library
 functions usually results in somthing like `Aff (Either PGError a)` which can be easily
-wrapped by user into `ExceptT` or any other custom monad stack. To be honest we provides predifined `ExceptT`
-versions of functions in `Database.PostgreSQL.PG` along with some `hoist*` helpers.
+wrapped by user into `ExceptT` or any other custom monad stack.
+To be honest we provide alternatives to functions in the `Database.PostgreSQL.PG` module that work on any stack `m` with `MonadError PGError m` and `MonadAff m`.
+The module contains two functions `withConnection` and `withTransaction` that require additional parameter - a transformation from a custom monad stack to `Aff (Either PGError a)`.
 We are going to work with `PG` type in this tutorial but please don't consider it as the only option
 if you encounter any troubles integrating it into your own app monad stack.
 
-  ```purescript
-  type PG a = ExceptT PGError Aff a
-  ```
+```purescript
+type PG a = ExceptT PGError Aff a
+
+withConnection :: forall a. Pool -> (Connection -> PG a) -> PG a
+withConnection = PG.withConnection runExceptT
+
+withTransaction :: forall a. Connection -> PG a -> PG a
+withTransaction = PG.withTransaction runExceptT
+```
 
 We assume here that Postgres is running on a standard local port
 with `ident` authentication so configuration can be nearly empty (`defaultPoolConfiguration`).

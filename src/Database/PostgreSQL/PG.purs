@@ -37,11 +37,11 @@ withConnection
     :: forall a m
      . MonadError PGError m
     => MonadAff m
-    => Pool
-    -> (m a -> Aff (Either PGError a))
+    => (m a -> Aff (Either PGError a))
+    -> Pool
     -> (Connection -> m a)
     -> m a
-withConnection p f k = do
+withConnection f p k = do
   res <- liftAff $ P.withConnection p case _ of
     Right conn -> f $ k conn
     Left pgErr -> pure $ Left pgErr
@@ -56,11 +56,11 @@ withTransaction
     :: forall a m
      . MonadAff m
     => MonadError PGError m
-    => Connection
-    -> (m a -> Aff (Either PGError a))
+    => (m a -> Aff (Either PGError a))
+    -> Connection
     -> m a
     -> m a
-withTransaction conn f action = do
+withTransaction f conn action = do
   res <- liftAff $ P.withTransaction conn (f action)
   either throwError pure $ join res
 
