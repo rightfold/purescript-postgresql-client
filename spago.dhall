@@ -4,6 +4,7 @@ You can edit this file as you like.
 -}
 { name =
     "my-project"
+, license = "BSD-3-Clause"
 , dependencies =
     [ "aff"
     , "arrays"
@@ -33,6 +34,7 @@ You can edit this file as you like.
     ]
 , packages =
     ./packages.dhall
+, repository = "https://github.com/rightfold/purescript-postgresql-client.git"
 , sources =
     [ "src/**/*.purs", "test/**/*.purs" ]
 }
