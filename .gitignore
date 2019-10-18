@@ -5,3 +5,4 @@
 /node_modules
 /output
 test/README.purs
+package-lock.json

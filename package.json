@@ -5,7 +5,8 @@
     "pg": "^6.1.2"
   },
   "devDependencies": {
-    "paluh-litps": "^0.1.4"
+    "paluh-litps": "^0.1.4",
+    "pulp": "^13.0.0"
   },
   "scripts": {
     "pretest": "paluh-litps compile --file README.md; mv README.purs test/README.purs",
