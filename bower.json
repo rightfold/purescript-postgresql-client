@@ -18,7 +18,7 @@
         "purescript-arrays": "^v5.3.0",
         "purescript-assert": "^v4.1.0",
         "purescript-bifunctors": "^v4.0.0",
-        "purescript-bytestrings": "^v7.0.0",
+        "purescript-bytestrings": "^v8.0.0",
         "purescript-console": "^v4.2.0",
         "purescript-datetime": "^v4.1.1",
         "purescript-decimals": "^v5.0.0",
