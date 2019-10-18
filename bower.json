@@ -1,37 +1,43 @@
 {
-  "name": "purescript-postgresql-client",
-  "license": "BSD-3-Clause",
-  "dependencies": {
-    "purescript-prelude": "^4.0.1",
-    "purescript-transformers": "^4.1.0",
-    "purescript-lists": "^5.0.0",
-    "purescript-foreign": "^5.0.0",
-    "purescript-aff": "^5.0.1",
-    "purescript-either": "^4.0.0",
-    "purescript-maybe": "^4.0.0",
-    "purescript-foldable-traversable": "^4.0.0",
-    "purescript-newtype": "^3.0.0",
-    "purescript-bytestrings": "adamczykm/purescript-bytestrings#7.0.0",
-    "purescript-arrays": "^5.0.0",
-    "purescript-datetime": "^4.0.0",
-    "purescript-bifunctors": "^4.0.0",
-    "purescript-effect": "^2.0.0",
-    "purescript-exceptions": "^4.0.0",
-    "purescript-decimals": "^4.0.0",
-    "purescript-js-date": "^6.0.0",
-    "purescript-foreign-object": "^1.0.0",
-    "purescript-foreign-generic": "^7.0.0",
-    "purescript-tuples": "^5.0.0",
-    "purescript-nullable": "^4.1.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/rightfold/purescript-postgresql-client.git"
-  },
-  "devDependencies": {
-    "purescript-assert": "^4.0.0",
-    "purescript-effect": "^2.0.0",
-    "purescript-debug": "^4.0.0",
-    "purescript-test-unit": "^14.0.0"
-  }
+    "name": "purescript-postgresql-client",
+    "license": [
+        "BSD-3-Clause"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/rightfold/purescript-postgresql-client.git"
+    },
+    "ignore": [
+        "**/.*",
+        "node_modules",
+        "bower_components",
+        "output"
+    ],
+    "dependencies": {
+        "purescript-aff": "^v5.1.1",
+        "purescript-arrays": "^v5.3.0",
+        "purescript-assert": "^v4.1.0",
+        "purescript-bifunctors": "^v4.0.0",
+        "purescript-bytestrings": "^v7.0.0",
+        "purescript-console": "^v4.2.0",
+        "purescript-datetime": "^v4.1.1",
+        "purescript-decimals": "^v5.0.0",
+        "purescript-effect": "^v2.0.1",
+        "purescript-either": "^v4.1.1",
+        "purescript-exceptions": "^v4.0.0",
+        "purescript-foldable-traversable": "^v4.1.1",
+        "purescript-foreign": "^v5.0.0",
+        "purescript-foreign-generic": "^v10.0.0",
+        "purescript-foreign-object": "^v2.0.3",
+        "purescript-js-date": "^v6.0.0",
+        "purescript-lists": "^v5.4.1",
+        "purescript-maybe": "^v4.0.1",
+        "purescript-newtype": "^v3.0.0",
+        "purescript-nullable": "^v4.1.1",
+        "purescript-prelude": "^v4.1.1",
+        "purescript-psci-support": "^v4.0.0",
+        "purescript-test-unit": "^v15.0.0",
+        "purescript-transformers": "^v4.2.0",
+        "purescript-tuples": "^v5.1.0"
+    }
 }
