@@ -7,6 +7,8 @@ import Prelude
 import Control.Monad.Error.Class (throwError, try)
 import Control.Monad.Except.Trans (runExceptT)
 import Control.Monad.Trans.Class (lift)
+import Data.Argonaut (Json)
+import Data.Argonaut (fromArray, fromObject, fromString) as Argonaut
 import Data.Array (zip)
 import Data.Date (Date, canonicalDate)
 import Data.DateTime.Instant (Instant, unInstant)
@@ -25,7 +27,8 @@ import Effect (Effect)
 import Effect.Aff (Aff, error, launchAff)
 import Effect.Class (liftEffect)
 import Effect.Exception (message)
-import Foreign.Object (Object, fromFoldable)
+import Foreign.Object (fromFoldable) as Object
+import Foreign.Object (Object)
 import Global.Unsafe (unsafeStringify)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
@@ -286,9 +289,9 @@ main = do
             pgEqual  3 (length dates)
             liftEffect <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip dates [d1, d2, d3])
 
-          test conn "handling json and jsonb value" $ do
-            let jsonIn = fromFoldable [Tuple "a" 1, Tuple "a" 2, Tuple "2" 3]
-            let expected = fromFoldable [Tuple "a" 2, Tuple "2" 3]
+          test conn "handling Foreign.Object as json and jsonb" $ do
+            let jsonIn = Object.fromFoldable [Tuple "a" 1, Tuple "a" 2, Tuple "2" 3]
+            let expected = Object.fromFoldable [Tuple "a" 2, Tuple "2" 3]
 
             execute conn (Query """
               INSERT INTO jsons (json, jsonb)
@@ -297,6 +300,28 @@ main = do
 
             (js ∷ Array (Row2 (Object Int) (Object Int))) <- query conn (Query """SELECT * FROM JSONS""") Row0
             liftEffect $ assert $ all (\(Row2 j1 j2) → j1 == expected && expected == j2) js
+
+          test conn "handling Argonaut.Json as json and jsonb for an object" $ do
+            let input = Argonaut.fromObject (Object.fromFoldable [ Tuple "a" (Argonaut.fromString "value") ])
+
+            execute conn (Query """
+              INSERT INTO jsons (json, jsonb)
+              VALUES ($1, $2)
+            """) (Row2 input input)
+
+            (js ∷ Array (Row2 (Json) (Json))) <- query conn (Query """SELECT * FROM JSONS""") Row0
+            liftEffect $ assert $ all (\(Row2 j1 j2) → j1 == input && j2 == input) js
+
+          test conn "handling Argonaut.Json as json and jsonb for an array" $ do
+            let input = Argonaut.fromArray [ Argonaut.fromObject (Object.fromFoldable [ Tuple "a" (Argonaut.fromString "value") ])]
+
+            execute conn (Query """
+              INSERT INTO jsons (json, jsonb)
+              VALUES ($1, $2)
+            """) (Row2 input input)
+
+            (js ∷ Array (Row2 (Json) (Json))) <- query conn (Query """SELECT * FROM JSONS""") Row0
+            liftEffect $ assert $ all (\(Row2 j1 j2) → j1 == input && j2 == input) js
 
           test conn "handling jsdate value" $ do
             let

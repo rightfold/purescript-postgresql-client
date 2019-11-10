@@ -8,6 +8,7 @@ You can edit this file as you like.
 , dependencies =
     [ "aff"
     , "arrays"
+    , "argonaut"
     , "assert"
     , "bifunctors"
     , "bytestrings"

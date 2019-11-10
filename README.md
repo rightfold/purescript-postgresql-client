@@ -1,6 +1,8 @@
 # purescript-postgresql-client
 
-purescript-postgresql-client is a PostgreSQL client library for PureScript.
+## Type conversions / serialization
+
+purescript-postgresql-client is a PostgreSQL client library for PureScript based on `node-postgres`.
 
 ## Install
 

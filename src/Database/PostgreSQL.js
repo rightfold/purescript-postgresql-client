@@ -3,6 +3,11 @@
 
 'use strict';
 
+// `pg related code/bindings are done here as we want to
+// allow web related modules to access `PostgreSQL.*` classes.
+// Putting this import into `PostgreSQL/Value.js` caused problem
+// with web bundlers.
+
 var pg = require('pg');
 
 // pg does strange thing converting DATE

@@ -1,9 +1,15 @@
 module Database.PostgreSQL.Value where
 
+-- | `node-postgres` is playing guessing game regarding type conversions
+-- | so we are overriding its defualt behavior for some types - please
+-- | check PostgreSQL.js
+
 import Prelude
 
 import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except (ExceptT, except, runExcept, runExceptT)
+import Data.Argonaut (Json)
+import Data.Argonaut (stringify) as Argonaut
 import Data.Array (foldl)
 import Data.Array as Array
 import Data.Bifunctor (lmap)
@@ -93,7 +99,7 @@ else instance fromSQLValueMaybe :: (FromSQLValue a) => FromSQLValue (Maybe a) wh
 else instance fromSQLValueForeign :: FromSQLValue Foreign where
     fromSQLValue = pure
 
-else instance fromSQLValueObject ∷ FromSQLValue a ⇒ FromSQLValue (Object a) where
+else instance fromSQLValueObject :: FromSQLValue a ⇒ FromSQLValue (Object a) where
   fromSQLValue sql = lmap showErr $ unwrap $ runExceptT main
     where
     showErr ∷ MultipleErrors → String
@@ -104,10 +110,14 @@ else instance fromSQLValueObject ∷ FromSQLValue a ⇒ FromSQLValue (Object a) 
       let eso = sequence $ map fromSQLValue objF
       let emo = lmap (singleton <<< ForeignError) eso
       except emo
+
 else instance fromSQLValueDecimal :: FromSQLValue Decimal where
     fromSQLValue v = do
         s <- lmap show $ runExcept (readString v)
         note ("Decimal literal parsing failed: " <> s) (Decimal.fromString s)
+
+else instance fromSQLValueJson :: FromSQLValue Json where
+  fromSQLValue = Right <<< unsafeFromForeign
 
 newtypeFromSQLValue ∷ ∀ a b. Newtype a b ⇒ FromSQLValue b ⇒ Foreign → Either String a
 newtypeFromSQLValue = map wrap <<< fromSQLValue
@@ -162,7 +172,13 @@ else instance toSQLValueObject ∷ ToSQLValue a ⇒ ToSQLValue (Object a) where
   toSQLValue = unsafeToForeign
 
 else instance toSQLValueDecimal :: ToSQLValue Decimal where
-    toSQLValue = Decimal.toString >>> unsafeToForeign
+  toSQLValue = Decimal.toString >>> unsafeToForeign
+
+else instance toSQLValueJson :: ToSQLValue Json where
+  -- | We are forced to stringify value here to avoid
+  -- | problems with pg auto conversions - please check for example:
+  -- | https://github.com/brianc/node-postgres/issues/1383
+  toSQLValue = Argonaut.stringify >>> unsafeToForeign
 
 newtypeToSQLValue ∷ ∀ a b. Newtype a b ⇒ ToSQLValue b ⇒ a → Foreign
 newtypeToSQLValue = unwrap >>> toSQLValue
