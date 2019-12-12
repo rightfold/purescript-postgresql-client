@@ -26,8 +26,6 @@ import Database.PostgreSQL.Value (class FromSQLValue, class ToSQLValue, fromSQLV
 import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff, liftAff)
 
-type Database = String
-
 hoistAffEither :: forall a m. MonadAff m => MonadError PGError m => Aff (Either PGError a) -> m a
 hoistAffEither m = liftAff m >>= either throwError pure
 
