@@ -9,6 +9,7 @@ module Database.PostgreSQL
 , Connection
 , Query(..)
 , newPool
+, connect
 , withConnection
 , withTransaction
 , defaultPoolConfiguration
