@@ -7,6 +7,7 @@ module Database.PostgreSQL
 , PoolConfiguration
 , Pool
 , Connection
+, ConnectResult
 , Query(..)
 , newPool
 , connect
