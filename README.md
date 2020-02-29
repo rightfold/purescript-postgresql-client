@@ -138,7 +138,18 @@ This function should return `rows` value associated with given response.
       liftEffect <<< assert $ deleted == 2
 ```
 
-## Testing
+## Generating SQL Queries
+
+The `purspg` preprocessor has been replaced by `sqltopurs`, which is a code
+generator instead of a preprocessor, and easier to use.
+
+[sqltopurs]: https://github.com/rightfold/sqltopurs
+[pg]: https://www.npmjs.com/package/pg
+[decimal.js]: https://www.npmjs.com/package/decimal.js
+
+## Hacking
+
+### Testing
 
 Currently tests are prepared to work with default and local setup for postgresql (ident authentication, standart port etc.).
 If you think that we should add configuration layer for our test runner please open an issue.
@@ -151,12 +162,6 @@ To run suite please:
 
   * `$ npm run test`
 
+### Releasing
 
-## Generating SQL Queries
-
-The `purspg` preprocessor has been replaced by `sqltopurs`, which is a code
-generator instead of a preprocessor, and easier to use.
-
-[sqltopurs]: https://github.com/rightfold/sqltopurs
-[pg]: https://www.npmjs.com/package/pg
-[decimal.js]: https://www.npmjs.com/package/decimal.js
+Till we are hosted on the github platform let's just use github releasing model for tagging new versions and `github-release-notes` to generate CHANGELOG.md from it.
