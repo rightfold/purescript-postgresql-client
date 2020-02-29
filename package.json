@@ -5,6 +5,7 @@
     "pg": "^6.1.2"
   },
   "devDependencies": {
+    "github-release-notes": "^0.17.1",
     "paluh-litps": "^0.1.4",
     "pulp": "^13.0.0"
   },
