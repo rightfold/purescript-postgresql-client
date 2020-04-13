@@ -166,8 +166,6 @@ To run suite please:
 
 Till we are hosted on the github platform let's just use github releasing model for tagging new versions and `github-release-notes` to generate CHANGELOG.md from it:
 
-```bash
-$ # This only requires repo access
-$ export GREN_GITHUB_TOKEN=...
-$ github-release-notes changelog --override
-```
+`$ # This only requires repo access`
+`$ export GREN_GITHUB_TOKEN=...`
+`$ github-release-notes changelog --override`
