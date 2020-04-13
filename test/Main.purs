@@ -22,13 +22,14 @@ import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
+import Database.PostgreSQL (PgConnectionUri, getDefaultPoolConfigurationByUri)
 import Database.PostgreSQL.PG (Connection, PGError(..), Pool, PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), command, execute, newPool, onIntegrityError, query, scalar)
 import Effect (Effect)
 import Effect.Aff (Aff, error, launchAff)
 import Effect.Class (liftEffect)
 import Effect.Exception (message)
-import Foreign.Object (fromFoldable) as Object
 import Foreign.Object (Object)
+import Foreign.Object (fromFoldable) as Object
 import Global.Unsafe (unsafeStringify)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
@@ -357,6 +358,11 @@ main = do
               Left (ProgrammingError { code, message }) -> equal code "3D000"
               _ -> Test.Unit.failure "PostgreSQL error was expected"
 
+          Test.Unit.test "get pool configuration from postgres uri" do
+            equal (getDefaultPoolConfigurationByUri validUriToPoolConfigs.uri) (Just validUriToPoolConfigs.poolConfig)
+            equal (getDefaultPoolConfigurationByUri notValidConnUri) Nothing
+
+
 config :: PoolConfiguration
 config =
   { user: Nothing
@@ -375,3 +381,18 @@ noSuchDatabaseConfig =
 cannotConnectConfig :: PoolConfiguration
 cannotConnectConfig =
   config { host = Just "127.0.0.1", port = Just 45287 }
+
+validUriToPoolConfigs :: { uri :: PgConnectionUri, poolConfig :: PoolConfiguration }
+validUriToPoolConfigs = {
+  uri: "postgres://urllgqrivcyako:c52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969@ec2-79-124-25-231.eu-west-1.compute.amazonaws.com:5432/e7cecg4nirunpo"
+  , poolConfig: { database: "e7cecg4nirunpo"
+                , host: Just "ec2-79-124-25-231.eu-west-1.compute.amazonaws.com"
+                , idleTimeoutMillis: Nothing
+                , max: Nothing
+                , password: Just "c52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969"
+                , port: Just 5432
+                , user: Just "urllgqrivcyako" }
+  }
+
+notValidConnUri :: PgConnectionUri
+notValidConnUri = "postgres://urllgqrivcyakoc52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969@ec2-79-124-25-231.eu-west-1.compute.amazonaws.com:5432/e7cecg4nirunpo"
