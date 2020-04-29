@@ -151,7 +151,7 @@ generator instead of a preprocessor, and easier to use.
 
 ### Testing
 
-Currently tests are prepared to work with default and local setup for postgresql (ident authentication, standart port etc.).
+Currently tests are prepared to work with default and local setup for postgresql (ident authentication, standard port etc.).
 If you think that we should add configuration layer for our test runner please open an issue.
 
 To run suite please:
