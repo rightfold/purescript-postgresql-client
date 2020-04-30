@@ -93,7 +93,8 @@ getDefaultPoolConfigurationByUri uri = hush $ flip runParser uri do
        , max: Nothing
        , password: Just $ toStr password
        , port: fromString $ toStr port
-       , user: Just $ toStr user }
+       , user: Just $ toStr user
+       }
   where tillChar = manyTill anyChar
         toStr = foldMap singleton
 

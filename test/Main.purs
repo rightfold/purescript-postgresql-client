@@ -380,7 +380,9 @@ noSuchDatabaseConfig =
 
 cannotConnectConfig :: PoolConfiguration
 cannotConnectConfig =
-  config { host = Just "127.0.0.1", port = Just 45287 }
+  config { host = Just "127.0.0.1"
+         , port = Just 45287
+         }
 
 validUriToPoolConfigs :: { uri :: PgConnectionUri, poolConfig :: PoolConfiguration }
 validUriToPoolConfigs = {
@@ -391,7 +393,8 @@ validUriToPoolConfigs = {
                 , max: Nothing
                 , password: Just "c52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969"
                 , port: Just 5432
-                , user: Just "urllgqrivcyako" }
+                , user: Just "urllgqrivcyako"
+                }
   }
 
 notValidConnUri :: PgConnectionUri
