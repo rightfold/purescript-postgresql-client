@@ -9,11 +9,13 @@ module Database.PostgreSQL
 , Connection
 , ConnectResult
 , Query(..)
+, PgConnectionUri
 , newPool
 , connect
 , withConnection
 , withTransaction
 , defaultPoolConfiguration
+, getDefaultPoolConfigurationByUri
 , command
 , execute
 , query
@@ -28,12 +30,14 @@ import Data.Bifunctor (lmap)
 import Data.Either (Either(..), either, hush)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
+import Data.Int (fromString)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (class Newtype)
 import Data.Nullable (Nullable, toMaybe, toNullable)
 import Data.String (Pattern(..))
 import Data.String as String
-import Data.Traversable (traverse)
+import Data.String.CodeUnits (singleton)
+import Data.Traversable (foldMap, traverse)
 import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), Row10(..), Row11(..), Row12(..), Row13(..), Row14(..), Row15(..), Row16(..), Row17(..), Row18(..), Row19(..), Row2(..), Row3(..), Row4(..), Row5(..), Row6(..), Row7(..), Row8(..), Row9(..), fromSQLRow, toSQLRow) as Row
 import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), fromSQLRow, toSQLRow)
 import Database.PostgreSQL.Value (class FromSQLValue)
@@ -44,6 +48,9 @@ import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
 import Effect.Class (liftEffect)
 import Effect.Exception (Error)
 import Foreign (Foreign)
+import Text.Parsing.StringParser (runParser)
+import Text.Parsing.StringParser.CodePoints (anyChar, char, string)
+import Text.Parsing.StringParser.Combinators (many, manyTill)
 
 type Database = String
 
@@ -68,6 +75,28 @@ defaultPoolConfiguration database =
     , port: Nothing
     , user: Nothing
     }
+
+type PgConnectionUri = String
+
+-- | Get the default pool configuration from postgres connection uri
+getDefaultPoolConfigurationByUri :: PgConnectionUri -> Maybe PoolConfiguration
+getDefaultPoolConfigurationByUri uri = hush $ flip runParser uri do
+  _ <- string "postgres://"
+  user <- tillChar (char ':')
+  password <- tillChar (char '@')
+  host <- tillChar (char ':')
+  port <- tillChar (char '/')
+  database <- many anyChar
+  pure { database: toStr database
+       , host: Just $ toStr host
+       , idleTimeoutMillis: Nothing
+       , max: Nothing
+       , password: Just $ toStr password
+       , port: fromString $ toStr port
+       , user: Just $ toStr user
+       }
+  where tillChar = manyTill anyChar
+        toStr = foldMap singleton
 
 -- | PostgreSQL connection pool.
 foreign import data Pool :: Type
