@@ -384,18 +384,18 @@ cannotConnectConfig =
          , port = Just 45287
          }
 
-validUriToPoolConfigs :: { uri :: PgConnectionUri, poolConfig :: PoolConfiguration }
-validUriToPoolConfigs = {
-  uri: "postgres://urllgqrivcyako:c52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969@ec2-79-124-25-231.eu-west-1.compute.amazonaws.com:5432/e7cecg4nirunpo"
-  , poolConfig: { database: "e7cecg4nirunpo"
-                , host: Just "ec2-79-124-25-231.eu-west-1.compute.amazonaws.com"
-                , idleTimeoutMillis: Nothing
-                , max: Nothing
-                , password: Just "c52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969"
-                , port: Just 5432
-                , user: Just "urllgqrivcyako"
-                }
-  }
+validUriToPoolConfigs :: { uri :: PgConnectionUri
+                         , poolConfig :: PoolConfiguration }
+validUriToPoolConfigs = { uri: "postgres://urllgqrivcyako:c52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969@ec2-79-124-25-231.eu-west-1.compute.amazonaws.com:5432/e7cecg4nirunpo"
+                        , poolConfig: { database: "e7cecg4nirunpo"
+                                      , host: Just "ec2-79-124-25-231.eu-west-1.compute.amazonaws.com"
+                                      , idleTimeoutMillis: Nothing
+                                      , max: Nothing
+                                      , password: Just "c52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969"
+                                      , port: Just 5432
+                                      , user: Just "urllgqrivcyako"
+                                      }
+                        }
 
 notValidConnUri :: PgConnectionUri
 notValidConnUri = "postgres://urllgqrivcyakoc52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969@ec2-79-124-25-231.eu-west-1.compute.amazonaws.com:5432/e7cecg4nirunpo"
