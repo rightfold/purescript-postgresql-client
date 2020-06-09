@@ -63,6 +63,7 @@ type PoolConfiguration =
     , password :: Maybe String
     , port :: Maybe Int
     , user :: Maybe String
+    , sslmode :: Maybe String
     }
 
 defaultPoolConfiguration :: Database -> PoolConfiguration
@@ -74,6 +75,7 @@ defaultPoolConfiguration database =
     , password: Nothing
     , port: Nothing
     , user: Nothing
+    , sslmode: Nothing
     }
 
 type PgConnectionUri = String
@@ -94,6 +96,7 @@ getDefaultPoolConfigurationByUri uri = hush $ flip runParser uri do
        , password: Just $ toStr password
        , port: fromString $ toStr port
        , user: Just $ toStr user
+       , sslmode: Nothing
        }
   where tillChar = manyTill anyChar
         toStr = foldMap singleton
@@ -122,6 +125,7 @@ newPool cfg =
         , database: cfg.database
         , max: toNullable cfg.max
         , idleTimeoutMillis: toNullable cfg.idleTimeoutMillis
+        , sslmode: toNullable cfg.sslmode
         }
 
 -- | Configuration which we actually pass to FFI.
@@ -133,6 +137,7 @@ type PoolConfiguration' =
     , database :: String
     , max :: Nullable Int
     , idleTimeoutMillis :: Nullable Int
+    , sslmode :: Nullable String
     }
 
 foreign import ffiNewPool
