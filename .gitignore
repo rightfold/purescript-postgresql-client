@@ -6,3 +6,4 @@
 /output
 test/README.purs
 package-lock.json
+.env
