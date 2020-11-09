@@ -4,9 +4,9 @@
 'use strict';
 
 // `pg related code/bindings are done here as we want to
-// allow web related modules to access `PostgreSQL.*` classes.
-// Putting this import into `PostgreSQL/Value.js` caused problem
-// with web bundlers.
+// allow frontend modules to access `PostgreSQL.*` classes too.
+// Putting this import into `PostgreSQL/Value.js` caused is a problem
+// for the web bundlers etc.
 
 var pg = require('pg');
 
@@ -14,12 +14,6 @@ var pg = require('pg');
 // value to js Date, so we have
 // to prevent this craziness
 pg.types.setTypeParser(1082 /* DATE_OID */, function(dateString) { return dateString; });
-
-exports.ffiNewPool = function(config) {
-    return function() {
-        return new pg.Pool(config);
-    };
-};
 
 exports.ffiConnect = function (config) {
     return function (pool) {

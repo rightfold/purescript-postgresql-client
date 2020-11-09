@@ -2,7 +2,8 @@
   "name": "purescript-postgresql-client",
   "dependencies": {
     "decimal.js": "^10.0.0",
-    "pg": "^6.1.2"
+    "pg": "^6.4.2",
+    "postgres": "^1.0.2"
   },
   "devDependencies": {
     "github-release-notes": "^0.17.1",

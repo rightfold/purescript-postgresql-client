@@ -116,6 +116,31 @@ let upstream =
 
 let overrides = {=}
 
-let additions = {=}
+let polyform = mkPackage
+  [ "debug", "foreign", "foreign-object", "generics-rep", "invariant", "newtype"
+  , "ordered-collections", "parsing", "psci-support", "profunctor", "quickcheck-laws"
+  , "run", "test-unit", "transformers", "validation", "variant"
+  ]
+  "https://github.com/purescript-polyform/polyform.git"
+  "master"
+
+let polyform-batteries = mkPackage
+  [ "affjax", "argonaut", "debug", "decimals", "filterable"
+  , "numbers", "polyform", "prelude", "record-extra"
+  , "test-unit"
+  ]
+  "https://github.com/purescript-polyform/batteries.git"
+  "master"
+
+let polyform-batteries-env = mkPackage
+  [ "polyform-batteries" ]
+  "https://github.com/purescript-polyform/batteries-env.git"
+  "master"
+
+let additions =
+  { polyform = polyform
+  , polyform-batteries = polyform-batteries
+  , polyform-batteries-env = polyform-batteries-env
+  }
 
 in  upstream // overrides // additions

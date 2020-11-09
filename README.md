@@ -19,8 +19,9 @@ module Test.README where
 import Prelude
 
 import Control.Monad.Except.Trans (ExceptT, runExceptT)
-import Database.PostgreSQL.PG (defaultPoolConfiguration, PGError, command, execute, newPool, Pool, Connection, query, Query(Query))
+import Database.PostgreSQL.PG (defaultConfiguration, PGError, command, execute, Pool, Connection, query, Query(Query))
 import Database.PostgreSQL.PG as PG
+import Database.PostgreSQL.Pool (new) as Pool
 import Database.PostgreSQL.Row (Row0(Row0), Row3(Row3))
 import Data.Decimal as Decimal
 import Data.Maybe (Maybe(..))
@@ -31,7 +32,7 @@ import Test.Assert (assert)
 ```
 
 The whole API for interaction with PostgreSQL is performed asynchronously in `Aff`
-(the only function which runs in plain `Effect` is `newPool`). Core library
+(the only function which runs in plain `Effect` is `Pool.new`). Core library
 functions usually results in somthing like `Aff (Either PGError a)` which can be easily
 wrapped by user into `ExceptT` or any other custom monad stack.
 To be honest we provide alternatives to functions in the `Database.PostgreSQL.PG` module that work on any stack `m` with `MonadError PGError m` and `MonadAff m`.
@@ -50,7 +51,7 @@ withTransaction = PG.withTransaction runExceptT
 ```
 
 We assume here that Postgres is running on a standard local port
-with `ident` authentication so configuration can be nearly empty (`defaultPoolConfiguration`).
+with `ident` authentication so configuration can be nearly empty (`defaultConfiguration`).
 It requires only database name which we pass to `newPool` function.
 Additionally we pass `idleTimeoutMillis` value because this code
 is run by our test suite and we want to exit after its execution quickly ;-)
@@ -60,8 +61,8 @@ is run by our test suite and we want to exit after its execution quickly ;-)
 run ∷ PG Unit
 run = do
 
-  pool <- liftEffect $ newPool
-    ((defaultPoolConfiguration "purspg") { idleTimeoutMillis = Just 1000 })
+  pool <- liftEffect $ Pool.new
+    ((defaultConfiguration "purspg") { idleTimeoutMillis = Just 1000 })
   withConnection pool \conn -> do
 ```
 
@@ -151,16 +152,7 @@ generator instead of a preprocessor, and easier to use.
 
 ### Testing
 
-Currently tests are prepared to work with default and local setup for postgresql (ident authentication, standard port etc.).
-If you think that we should add configuration layer for our test runner please open an issue.
-
-To run suite please:
-
-  * `$ npm install`
-
-  * `$ createdb purspg`
-
-  * `$ npm run test`
+Test database is read from the environment or loaded from _.env_ file. You can find _.env-example_ in the repo with some simple testing db setup.
 
 ### Releasing
 

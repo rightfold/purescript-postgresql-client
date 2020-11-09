@@ -22,8 +22,9 @@ import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
-import Database.PostgreSQL (PgConnectionUri, getDefaultPoolConfigurationByUri)
-import Database.PostgreSQL.PG (Connection, PGError(..), Pool, PoolConfiguration, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), command, execute, newPool, onIntegrityError, query, scalar)
+import Database.PostgreSQL (PGConnectionURI, parseURI)
+import Database.PostgreSQL.PG (Configuration, Connection, PGError(..), Pool, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), command, execute, onIntegrityError, query, scalar)
+import Database.PostgreSQL.Pool (new) as Pool
 import Effect (Effect)
 import Effect.Aff (Aff, error, launchAff)
 import Effect.Class (liftEffect)
@@ -34,6 +35,7 @@ import Global.Unsafe (unsafeStringify)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
 import Test.Assert (assert)
+import Test.Config (load) as Config
 import Test.README (run, PG, withConnection, withTransaction) as README
 import Test.Unit (TestSuite, suite)
 import Test.Unit as Test.Unit
@@ -92,14 +94,24 @@ jsdate_ ∷ Number → Number → Number → Number → Number → Number → Nu
 jsdate_ year month day hour minute second millisecond =
   jsdate { year, month, day, hour, minute, second, millisecond }
 
+noSuchDatabaseConfig :: Configuration → Configuration
+noSuchDatabaseConfig config =
+  config { database = "non-existing" <> config.database }
+
+cannotConnectConfig :: Configuration → Configuration
+cannotConnectConfig config =
+  config { host = Just "127.0.0.1"
+         , port = Just 45287
+         }
+
 main ∷ Effect Unit
 main = do
   void $ launchAff do
     -- Running guide from README
     void $ runExceptT $ README.run
 
-    -- Actual test suite
-    pool <- liftEffect $ newPool config
+    config ← Config.load
+    pool ← liftEffect $ Pool.new config
     checkPGErrors $ withConnection pool \conn -> do
       execute conn (Query """
         CREATE TEMPORARY TABLE foods (
@@ -347,45 +359,23 @@ main = do
           let doNothing _ = pure unit
 
           Test.Unit.test "connection refused" do
-            testPool <- liftEffect $ newPool cannotConnectConfig
+            testPool <- liftEffect $ Pool.new (cannotConnectConfig config)
             runExceptT (withConnection testPool doNothing) >>= case _ of
               Left (ConnectionError cause) -> equal cause "ECONNREFUSED"
               _ -> Test.Unit.failure "foo"
 
           Test.Unit.test "no such database" do
-            testPool <- liftEffect $ newPool noSuchDatabaseConfig
+            testPool <- liftEffect $ Pool.new (noSuchDatabaseConfig config)
             runExceptT (withConnection testPool doNothing) >>= case _ of
               Left (ProgrammingError { code, message }) -> equal code "3D000"
               _ -> Test.Unit.failure "PostgreSQL error was expected"
 
           Test.Unit.test "get pool configuration from postgres uri" do
-            equal (getDefaultPoolConfigurationByUri validUriToPoolConfigs.uri) (Just validUriToPoolConfigs.poolConfig)
-            equal (getDefaultPoolConfigurationByUri notValidConnUri) Nothing
+            equal (parseURI validUriToPoolConfigs.uri) (Just validUriToPoolConfigs.poolConfig)
+            equal (parseURI notValidConnUri) Nothing
 
-
-config :: PoolConfiguration
-config =
-  { user: Nothing
-  , password: Nothing
-  , host: Nothing
-  , port: Nothing
-  , database: "purspg"
-  , max: Nothing
-  , idleTimeoutMillis: Just 1000
-  }
-
-noSuchDatabaseConfig :: PoolConfiguration
-noSuchDatabaseConfig =
-  config { database = "this-database-does-not-exist" }
-
-cannotConnectConfig :: PoolConfiguration
-cannotConnectConfig =
-  config { host = Just "127.0.0.1"
-         , port = Just 45287
-         }
-
-validUriToPoolConfigs :: { uri :: PgConnectionUri
-                         , poolConfig :: PoolConfiguration }
+validUriToPoolConfigs :: { uri :: PGConnectionURI
+                         , poolConfig :: Configuration }
 validUriToPoolConfigs = { uri: "postgres://urllgqrivcyako:c52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969@ec2-79-124-25-231.eu-west-1.compute.amazonaws.com:5432/e7cecg4nirunpo"
                         , poolConfig: { database: "e7cecg4nirunpo"
                                       , host: Just "ec2-79-124-25-231.eu-west-1.compute.amazonaws.com"
@@ -397,5 +387,5 @@ validUriToPoolConfigs = { uri: "postgres://urllgqrivcyako:c52275a95b7f177e2850c4
                                       }
                         }
 
-notValidConnUri :: PgConnectionUri
+notValidConnUri :: PGConnectionURI
 notValidConnUri = "postgres://urllgqrivcyakoc52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969@ec2-79-124-25-231.eu-west-1.compute.amazonaws.com:5432/e7cecg4nirunpo"
