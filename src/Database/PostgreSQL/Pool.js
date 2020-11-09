@@ -11,18 +11,18 @@ exports.ffiNew = function(config) {
 
 exports.totalCount = function(pool) {
   return function() {
-    return pool.totalCount();
+    return pool.totalCount;
   };
 };
 
 exports.idleCount = function(pool) {
   return function() {
-    return pool.idleCount();
+    return pool.idleCount;
   };
 };
 
 exports.waitingCount = function(pool) {
   return function() {
-    return pool.waitingCount();
+    return pool.waitingCount;
   };
 };
