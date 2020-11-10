@@ -3,6 +3,7 @@ module Test.Main
   ) where
 
 import Prelude
+
 import Control.Monad.Error.Class (throwError, try)
 import Control.Monad.Except.Trans (runExceptT)
 import Control.Monad.Trans.Class (lift)
@@ -21,7 +22,7 @@ import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
-import Database.PostgreSQL (Configuration, Client, Connection, PGError(..), Pool, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), PGConnectionURI, parseURI)
+import Database.PostgreSQL (Client, Configuration, Connection(..), PGConnectionURI, PGError(..), Pool, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), fromClient, fromPool, parseURI)
 import Database.PostgreSQL.PG (command, execute, onIntegrityError, query, scalar)
 import Database.PostgreSQL.PG (withClient, withClientTransaction) as PG
 import Database.PostgreSQL.Pool (new) as Pool
@@ -58,18 +59,18 @@ withRollback ∷
   AppM Unit
 withRollback client action = begin *> action *> rollback
   where
-  begin = execute (Right client) (Query "BEGIN TRANSACTION") Row0
+  conn = fromClient client
+  begin = execute conn (Query "BEGIN TRANSACTION") Row0
 
-  rollback = execute (Right client) (Query "ROLLBACK TRANSACTION") Row0
+  rollback = execute conn (Query "ROLLBACK TRANSACTION") Row0
 
 test ∷
   Connection →
   String →
   AppM Unit →
   TestSuite
-test (Left pool) name action = Test.Unit.test name $ checkPGErrors $ action
-
-test (Right client) name action = Test.Unit.test name $ checkPGErrors $ withRollback client action
+test (Connection (Left pool)) name action = Test.Unit.test name $ checkPGErrors $ action
+test (Connection (Right client)) name action = Test.Unit.test name $ checkPGErrors $ withRollback client action
 
 transactionTest ∷
   String →
@@ -112,27 +113,27 @@ main = do
         config ← Config.load
         pool ← liftEffect $ Pool.new config
         checkPGErrors
-          $ execute (Left pool)
+          $ execute (fromPool pool)
               ( Query
                   """
-      CREATE TEMPORARY TABLE foods (
-        name text NOT NULL,
-        delicious boolean NOT NULL,
-        price NUMERIC(4,2) NOT NULL,
-        added TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (name)
-      );
-      CREATE TEMPORARY TABLE dates (
-        date date NOT NULL
-      );
-      CREATE TEMPORARY TABLE timestamps (
-        timestamp timestamptz NOT NULL
-      );
-      CREATE TEMPORARY TABLE jsons (
-        json json NOT NULL,
-        jsonb jsonb NOT NULL
-      );
-    """
+                  CREATE TEMPORARY TABLE foods (
+                    name text NOT NULL,
+                    delicious boolean NOT NULL,
+                    price NUMERIC(4,2) NOT NULL,
+                    added TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (name)
+                  );
+                  CREATE TEMPORARY TABLE dates (
+                    date date NOT NULL
+                  );
+                  CREATE TEMPORARY TABLE timestamps (
+                    timestamp timestamptz NOT NULL
+                  );
+                  CREATE TEMPORARY TABLE jsons (
+                    json json NOT NULL,
+                    jsonb jsonb NOT NULL
+                  );
+                """
               )
               Row0
         checkPGErrors
@@ -144,32 +145,32 @@ main = do
                           let
                             testCount n = do
                               count <-
-                                scalar (Left pool)
+                                scalar (fromPool pool)
                                   ( Query
                                       """
-                SELECT count(*) = $1
-                FROM foods
-              """
+                                      SELECT count(*) = $1
+                                      FROM foods
+                                      """
                                   )
                                   (Row1 n)
                               liftEffect <<< assert $ count == Just true
                           transactionTest "transaction commit" do
                             withClientTransaction client do
-                              execute (Right client)
+                              execute (fromClient client)
                                 ( Query
                                     """
-                INSERT INTO foods (name, delicious, price)
-                VALUES ($1, $2, $3)
-              """
+                                    INSERT INTO foods (name, delicious, price)
+                                    VALUES ($1, $2, $3)
+                                    """
                                 )
                                 (Row3 "pork" true (D.fromString "8.30"))
                               testCount 1
                             testCount 1
-                            execute (Right client)
+                            execute (fromClient client)
                               ( Query
                                   """
-              DELETE FROM foods
-            """
+                                  DELETE FROM foods
+                                  """
                               )
                               Row0
                           transactionTest "transaction rollback on PostgreSQL error"
@@ -177,17 +178,17 @@ main = do
                                 _ <-
                                   try
                                     $ withClientTransaction client do
-                                        execute (Right client)
+                                        execute (fromClient client)
                                           ( Query
                                               """
-                INSERT INTO foods (name, delicious, price)
-                VALUES ($1, $2, $3)
-              """
+                                              INSERT INTO foods (name, delicious, price)
+                                              VALUES ($1, $2, $3)
+                                              """
                                           )
                                           (Row3 "pork" true (D.fromString "8.30"))
                                         testCount 1
                                         -- invalid SQL query --> PGError is thrown
-                                        execute (Right client) (Query "foo bar") Row0
+                                        execute (fromClient client) (Query "foo bar") Row0
                                 -- transaction should've been rolled back
                                 testCount 0
                           transactionTest "transaction rollback on JavaScript exception"
@@ -195,12 +196,12 @@ main = do
                                 result <-
                                   lift $ try $ runExceptT
                                     $ withClientTransaction client do
-                                        execute (Right client)
+                                        execute (fromClient client)
                                           ( Query
                                               """
-                INSERT INTO foods (name, delicious, price)
-                VALUES ($1, $2, $3)
-              """
+                                              INSERT INTO foods (name, delicious, price)
+                                              VALUES ($1, $2, $3)
+                                              """
                                           )
                                           (Row3 "pork" true (D.fromString "8.30"))
                                         testCount 1
@@ -214,15 +215,15 @@ main = do
                                 -- transaction should've been rolled back
                                 testCount 0
                           let
-                            handle = Right client
+                            handle = fromClient client
                           test handle "usage of rows represented by nested tuples"
                             $ do
                                 execute handle
                                   ( Query
                                       """
-              INSERT INTO foods (name, delicious, price)
-              VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9)
-            """
+                                      INSERT INTO foods (name, delicious, price)
+                                      VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9)
+                                      """
                                   )
                                   ( ("pork" /\ true /\ (D.fromString "8.30"))
                                       /\ ("sauerkraut" /\ false /\ (D.fromString "3.30"))
@@ -232,11 +233,11 @@ main = do
                                   query handle
                                     ( Query
                                         """
-              SELECT name, delicious
-              FROM foods
-              WHERE delicious
-              ORDER BY name ASC
-            """
+                                        SELECT name, delicious
+                                        FROM foods
+                                        WHERE delicious
+                                        ORDER BY name ASC
+                                        """
                                     )
                                     Row0
                                 liftEffect <<< assert $ names == [ "pork" /\ true, "rookworst" /\ true ]
@@ -247,9 +248,9 @@ main = do
                                 execute handle
                                   ( Query
                                       """
-              INSERT INTO dates (date)
-              VALUES ($1)
-            """
+                                      INSERT INTO dates (date)
+                                      VALUES ($1)
+                                      """
                                   )
                                   row
                                 rows <- query handle (Query "SELECT date FROM dates") Row0
@@ -259,9 +260,9 @@ main = do
                               execute handle
                                 ( Query
                                     """
-                INSERT INTO foods (name, delicious, price)
-                VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9)
-              """
+                                    INSERT INTO foods (name, delicious, price)
+                                    VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9)
+                                    """
                                 )
                                 ( Row9
                                     "pork"
@@ -281,11 +282,11 @@ main = do
                                   query handle
                                     ( Query
                                         """
-              SELECT name, delicious
-              FROM foods
-              WHERE delicious
-              ORDER BY name ASC
-            """
+                                        SELECT name, delicious
+                                        FROM foods
+                                        WHERE delicious
+                                        ORDER BY name ASC
+                                        """
                                     )
                                     Row0
                                 liftEffect <<< assert $ names == [ Row2 "pork" true, Row2 "rookworst" true ]
@@ -296,10 +297,10 @@ main = do
                                   query handle
                                     ( Query
                                         """
-              DELETE FROM foods
-              WHERE delicious
-              RETURNING name, delicious
-            """
+                                        DELETE FROM foods
+                                        WHERE delicious
+                                        RETURNING name, delicious
+                                        """
                                     )
                                     Row0
                                 liftEffect <<< assert $ deleted == [ Row2 "pork" true, Row2 "rookworst" true ]
@@ -310,9 +311,9 @@ main = do
                                   command handle
                                     ( Query
                                         """
-              DELETE FROM foods
-              WHERE delicious
-            """
+                                        DELETE FROM foods
+                                        WHERE delicious
+                                        """
                                     )
                                     Row0
                                 liftEffect <<< assert $ deleted == 2
@@ -324,9 +325,9 @@ main = do
                                   query handle
                                     ( Query
                                         """
-              SELECT added
-              FROM foods
-            """
+                                        SELECT added
+                                        FROM foods
+                                        """
                                     )
                                     Row0
                                 after <- liftEffect $ (unwrap <<< unInstant) <$> now
@@ -347,10 +348,10 @@ main = do
                                   query handle
                                     ( Query
                                         """
-              SELECT price
-              FROM foods
-              WHERE NOT delicious
-            """
+                                        SELECT price
+                                        FROM foods
+                                        WHERE NOT delicious
+                                        """
                                     )
                                     Row0
                                 liftEffect <<< assert $ sauerkrautPrice == [ Row1 (D.fromString "3.30") ]
@@ -374,19 +375,19 @@ main = do
                                 execute handle
                                   ( Query
                                       """
-              INSERT INTO dates (date)
-              VALUES ($1), ($2), ($3)
-            """
+                                      INSERT INTO dates (date)
+                                      VALUES ($1), ($2), ($3)
+                                      """
                                   )
                                   (Row3 d1 d2 d3)
                                 (dates :: Array (Row1 Date)) <-
                                   query handle
                                     ( Query
                                         """
-              SELECT *
-              FROM dates
-              ORDER BY date ASC
-            """
+                                        SELECT *
+                                        FROM dates
+                                        ORDER BY date ASC
+                                        """
                                     )
                                     Row0
                                 pgEqual 3 (length dates)
@@ -400,9 +401,9 @@ main = do
                                 execute handle
                                   ( Query
                                       """
-              INSERT INTO jsons (json, jsonb)
-              VALUES ($1, $2)
-            """
+                                      INSERT INTO jsons (json, jsonb)
+                                      VALUES ($1, $2)
+                                      """
                                   )
                                   (Row2 jsonIn jsonIn)
                                 (js ∷ Array (Row2 (Object Int) (Object Int))) <- query handle (Query """SELECT * FROM JSONS""") Row0
@@ -414,9 +415,9 @@ main = do
                                 execute handle
                                   ( Query
                                       """
-              INSERT INTO jsons (json, jsonb)
-              VALUES ($1, $2)
-            """
+                                      INSERT INTO jsons (json, jsonb)
+                                      VALUES ($1, $2)
+                                      """
                                   )
                                   (Row2 input input)
                                 (js ∷ Array (Row2 (Json) (Json))) <- query handle (Query """SELECT * FROM JSONS""") Row0
@@ -428,9 +429,9 @@ main = do
                                 execute handle
                                   ( Query
                                       """
-              INSERT INTO jsons (json, jsonb)
-              VALUES ($1, $2)
-            """
+                                      INSERT INTO jsons (json, jsonb)
+                                      VALUES ($1, $2)
+                                      """
                                   )
                                   (Row2 input input)
                                 (js ∷ Array (Row2 (Json) (Json))) <- query handle (Query """SELECT * FROM JSONS""") Row0
@@ -446,19 +447,19 @@ main = do
                                 execute handle
                                   ( Query
                                       """
-              INSERT INTO timestamps (timestamp)
-              VALUES ($1), ($2), ($3)
-            """
+                                      INSERT INTO timestamps (timestamp)
+                                      VALUES ($1), ($2), ($3)
+                                      """
                                   )
                                   (Row3 jsd1 jsd2 jsd3)
                                 (timestamps :: Array (Row1 JSDate)) <-
                                   query handle
                                     ( Query
                                         """
-              SELECT *
-              FROM timestamps
-              ORDER BY timestamp ASC
-            """
+                                        SELECT *
+                                        FROM timestamps
+                                        ORDER BY timestamp ASC
+                                        """
                                     )
                                     Row0
                                 pgEqual 3 (length timestamps)

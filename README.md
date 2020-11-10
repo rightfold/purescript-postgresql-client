@@ -19,8 +19,7 @@ module Test.README where
 import Prelude
 
 import Control.Monad.Except.Trans (ExceptT, runExceptT)
-import Data.Either (Either(..))
-import Database.PostgreSQL (Connection, Pool, Query(Query), PGError)
+import Database.PostgreSQL (Connection, fromPool, Pool, Query(Query), PGError)
 import Database.PostgreSQL.PG (command, execute, query, withTransaction) as PG
 import Database.PostgreSQL.Pool (new) as Pool
 import Database.PostgreSQL.Row (Row0(Row0), Row3(Row3))
@@ -70,12 +69,13 @@ We can now create our temporary table which we are going to query in this exampl
 `PG.execute` ignores result value which is what we want in this case.
 The last `Row0` value indicates that this `Query` doesn't take any additional parameters.
 
-Database quering functions like `execute` below can perform the action using pool (JS `Pool` instance)
-or a connection (js `Client` instance) so they expect a value of type `type Connection = Either Pool Client`.
+Database quering functions like `execute` below can perform the action using the pool 
+or the connection instance so they expect a value of type `Connection` (which is just
+a wrapper around `Either` - `newtype Connection = Connection (Either Pool Client)`).
 
 ```purescript
 
-  PG.execute (Left pool) (Query """
+  PG.execute (fromPool pool) (Query """
     CREATE TEMPORARY TABLE fruits (
       name text NOT NULL,
       delicious boolean NOT NULL,
@@ -123,7 +123,7 @@ data from db.
 `query` function processes db response and returns an `Array` of rows.
 
 ```purescript
-  names <- PG.query (Left pool) (Query """
+  names <- PG.query (fromPool pool) (Query """
     SELECT name, delicious
     FROM fruits
     ORDER BY name ASC
@@ -138,7 +138,7 @@ For example we can have: `DELETE rows`, `UPDATE rows`, `INSERT oid rows` etc.
 This function should return `rows` value associated with given response.
 
 ```purescript
-  deleted <- PG.command (Left pool) (Query """DELETE FROM fruits """) Row0
+  deleted <- PG.command (fromPool pool) (Query """DELETE FROM fruits """) Row0
   liftEffect <<< assert $ deleted == 2
 ```
 
