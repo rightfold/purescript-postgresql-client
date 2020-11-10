@@ -20,7 +20,7 @@ import Prelude
 
 import Control.Monad.Except.Trans (ExceptT, runExceptT)
 import Data.Either (Either(..))
-import Database.PostgreSQL (Connection, DBHandle, defaultConfiguration, Pool, Query(Query), PGError)
+import Database.PostgreSQL (Client, Connection, defaultConfiguration, Pool, Query(Query), PGError)
 import Database.PostgreSQL.PG (command, execute, query, withTransaction) as PG
 import Database.PostgreSQL.Pool (new) as Pool
 import Database.PostgreSQL.Row (Row0(Row0), Row3(Row3))
@@ -38,14 +38,14 @@ functions usually results in somthing like `Aff (Either PGError a)` which can be
 wrapped by user into `ExceptT` or any other custom monad stack. This base API is exposed by
 `PostgreSQL.Aff` module.
 To be honest we provide alternatives to functions in the `Database.PostgreSQL.PG` module that work on any stack `m` with `MonadError PGError m` and `MonadAff m`.
-The module contains two functions `withConnection` and `withTransaction` that require additional parameter - a transformation from a custom monad stack to `Aff (Either PGError a)`.
+The module contains two functions `withClient` and `withTransaction` that require additional parameter - a transformation from a custom monad stack to `Aff (Either PGError a)`.
 We are going to work with custom `AppM` type in this tutorial but please don't consider it as the only option
 if you encounter any troubles integrating it into your own app monad stack.
 
 ```purescript
 type AppM a = ExceptT PGError Aff a
 
-withTransaction :: forall a. Pool -> (DBHandle -> AppM a) -> AppM a
+withTransaction :: forall a. Pool -> (Connection -> AppM a) -> AppM a
 withTransaction p = PG.withTransaction runExceptT p
 ```
 
@@ -69,7 +69,7 @@ We can now create our temporary table which we are going to query in this exampl
 The last `Row0` value indicates that this `Query` doesn't take any additional parameters.
 
 Database quering functions like `execute` below can perform the action using pool (JS `Pool` instance)
-or a connection (js `Client` instance) so they expect a value of type `type DBHandle = Either Pool Connection`.
+or a connection (js `Client` instance) so they expect a value of type `type Connection = Either Pool Client`.
 
 ```purescript
 
