@@ -16,7 +16,7 @@ import Control.Monad.Except (class MonadError)
 import Data.Either (Either(..), either)
 import Data.Maybe (Maybe, maybe)
 import Data.Profunctor (lcmap)
-import Database.PostgreSQL.Aff (Client, Connection, PGError(..), Query)
+import Database.PostgreSQL.Aff (Client, Connection, PGError(..), Query, fromClient)
 import Database.PostgreSQL.Aff (command, execute, query, scalar, withClient, withClientTransaction, withTransaction) as Aff
 import Database.PostgreSQL.Pool (Pool)
 import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row1)
@@ -56,7 +56,7 @@ withConnection ::
   Pool ->
   (Connection -> m a) ->
   m a
-withConnection f p k = withClient f p (lcmap Right k)
+withConnection f p k = withClient f p (lcmap fromClient k)
 
 -- | TODO: Update docs
 -- | Run an action within a transaction. The transaction is committed if the

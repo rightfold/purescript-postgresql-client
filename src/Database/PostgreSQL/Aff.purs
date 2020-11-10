@@ -1,5 +1,5 @@
 module Database.PostgreSQL.Aff
-  ( Connection
+  ( Connection(..)
   , PGError(..)
   , PGErrorDetail
   , Client
@@ -12,11 +12,14 @@ module Database.PostgreSQL.Aff
   , withTransaction
   , command
   , execute
+  , fromClient
+  , fromPool
   , query
   , scalar
   ) where
 
 import Prelude
+
 import Control.Monad.Error.Class (catchError, throwError)
 import Data.Array (head)
 import Data.Bifunctor (lmap)
@@ -74,7 +77,7 @@ withConnection ::
   Pool ->
   (Either PGError Connection -> Aff a) ->
   Aff a
-withConnection p k = withClient p (lcmap (map Right) k)
+withConnection p k = withClient p (lcmap (map fromClient) k)
 
 connect ::
   Pool ->
@@ -109,7 +112,7 @@ withTransaction pool action =
   withClient pool case _ of
     Right client ->
       withClientTransaction client do
-        (action $ Right client)
+        (action $ fromClient client)
     Left err → pure $ Left err
 
 -- | TODO: Outdated docs
@@ -139,16 +142,22 @@ withClientTransaction client action =
                 Nothing -> pure (Right a)
         Just pgError -> pure (Left pgError)
   where
-  h = Right client
+  conn = fromClient client
 
-  begin = execute h (Query "BEGIN TRANSACTION") Row0
+  begin = execute conn (Query "BEGIN TRANSACTION") Row0
 
-  commit = execute h (Query "COMMIT TRANSACTION") Row0
+  commit = execute conn (Query "COMMIT TRANSACTION") Row0
 
-  rollback = execute h (Query "ROLLBACK TRANSACTION") Row0
+  rollback = execute conn (Query "ROLLBACK TRANSACTION") Row0
 
-type Connection
-  = Either Pool Client
+newtype Connection = Connection (Either Pool Client)
+derive instance newtypeConnection :: Newtype Connection _
+
+fromPool :: Pool -> Connection
+fromPool pool = Connection (Left pool)
+
+fromClient :: Client -> Connection
+fromClient client = Connection (Right client)
 
 -- | APIs of the `Pool.query` and `Client.query` are the same.
 -- | We can dse this polyformphis to simplify ffi.
@@ -162,7 +171,7 @@ execute ::
   Query i o ->
   i ->
   Aff (Maybe PGError)
-execute h (Query sql) values = hush <<< either Right Left <$> unsafeQuery h sql (toSQLRow values)
+execute conn (Query sql) values = hush <<< either Right Left <$> unsafeQuery conn sql (toSQLRow values)
 
 -- | Execute a PostgreSQL query and return its results.
 query ::
@@ -173,8 +182,8 @@ query ::
   Query i o ->
   i ->
   Aff (Either PGError (Array o))
-query h (Query sql) values = do
-  r <- unsafeQuery h sql (toSQLRow values)
+query conn (Query sql) values = do
+  r <- unsafeQuery conn sql (toSQLRow values)
   pure $ r >>= _.rows >>> traverse (fromSQLRow >>> lmap ConversionError)
 
 -- | Execute a PostgreSQL query and return the first field of the first row in
@@ -187,7 +196,7 @@ scalar ::
   Query i (Row1 o) ->
   i ->
   Aff (Either PGError (Maybe o))
-scalar h sql values = query h sql values <#> map (head >>> map (case _ of Row1 a -> a))
+scalar conn sql values = query conn sql values <#> map (head >>> map (case _ of Row1 a -> a))
 
 -- | Execute a PostgreSQL query and return its command tag value
 -- | (how many rows were affected by the query). This may be useful
@@ -199,7 +208,7 @@ command ::
   Query i Int ->
   i ->
   Aff (Either PGError Int)
-command h (Query sql) values = map _.rowCount <$> unsafeQuery h sql (toSQLRow values)
+command conn (Query sql) values = map _.rowCount <$> unsafeQuery conn sql (toSQLRow values)
 
 type QueryResult
   = { rows :: Array (Array Foreign)
@@ -211,12 +220,12 @@ unsafeQuery ::
   String ->
   Array Foreign ->
   Aff (Either PGError QueryResult)
-unsafeQuery c s = fromEffectFnAff <<< ffiUnsafeQuery p (toUntaggedHandler c) s
+unsafeQuery conn s = fromEffectFnAff <<< ffiUnsafeQuery p (toUntaggedHandler conn) s
   where
   toUntaggedHandler ∷ Connection → UntaggedConnection
-  toUntaggedHandler (Left pool) = unsafeCoerce pool
-
-  toUntaggedHandler (Right client) = unsafeCoerce client
+  toUntaggedHandler (Connection c) = case c of
+    (Left pool) -> unsafeCoerce pool
+    (Right client) -> unsafeCoerce client
 
   p =
     { nullableLeft: toNullable <<< map Left <<< convertError
