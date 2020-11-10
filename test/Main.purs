@@ -22,8 +22,9 @@ import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
-import Database.PostgreSQL (PGConnectionURI, parseURI)
-import Database.PostgreSQL.PG (Configuration, Connection, PGError(..), Pool, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), command, execute, onIntegrityError, query, scalar)
+import Database.PostgreSQL (Configuration, Connection, DBHandle, PGError(..), Pool, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), PGConnectionURI, parseURI)
+import Database.PostgreSQL.PG (command, execute, onIntegrityError, query, scalar)
+import Database.PostgreSQL.PG (withConnection, withConnectionTransaction) as PG
 import Database.PostgreSQL.Pool (new) as Pool
 import Effect (Effect)
 import Effect.Aff (Aff, error, launchAff)
@@ -35,49 +36,51 @@ import Math ((%))
 import Partial.Unsafe (unsafePartial)
 import Test.Assert (assert)
 import Test.Config (load) as Config
-import Test.README (run, PG, withConnection, withTransaction) as README
+import Test.README (AppM)
+import Test.README (run) as README
 import Test.Unit (TestSuite, suite)
 import Test.Unit as Test.Unit
 import Test.Unit.Assert (equal)
 import Test.Unit.Main (runTest)
 
-type PG a = README.PG a
+withConnection :: forall a. Pool -> (Connection -> AppM a) -> AppM a
+withConnection = PG.withConnection runExceptT
 
-withConnection :: forall a. Pool -> (Connection -> PG a) -> PG a
-withConnection = README.withConnection
+withConnectionTransaction :: forall a. Connection -> AppM a -> AppM a
+withConnectionTransaction = PG.withConnectionTransaction runExceptT
 
-withTransaction :: forall a. Connection -> PG a -> PG a
-withTransaction = README.withTransaction
 
-pgEqual :: forall a. Eq a => Show a => a -> a -> PG Unit
+pgEqual :: forall a. Eq a => Show a => a -> a -> AppM Unit
 pgEqual a b = lift $ equal a b
 
 withRollback
   ∷ Connection
-  → PG Unit
-  → PG Unit
+  → AppM Unit
+  → AppM Unit
 withRollback conn action =
     begin *> action *> rollback
     where
-        begin = execute conn (Query "BEGIN TRANSACTION") Row0
-        rollback = execute conn (Query "ROLLBACK TRANSACTION") Row0
+        begin = execute (Right conn) (Query "BEGIN TRANSACTION") Row0
+        rollback = execute (Right conn) (Query "ROLLBACK TRANSACTION") Row0
 
 test
-  ∷ Connection
+  ∷ DBHandle
   → String
-  → PG Unit
+  → AppM Unit
   → TestSuite
-test conn name action =
+test (Left pool) name action =
+    Test.Unit.test name $ checkPGErrors $ action
+test (Right conn) name action =
     Test.Unit.test name $ checkPGErrors $ withRollback conn action
 
 transactionTest
   ∷ String
-  → PG Unit
+  → AppM Unit
   → TestSuite
 transactionTest name action =
     Test.Unit.test name $ checkPGErrors $ action
 
-checkPGErrors :: PG Unit -> Aff Unit
+checkPGErrors :: AppM Unit -> Aff Unit
 checkPGErrors action = do
     runExceptT action >>= case _ of
         Left pgError -> Test.Unit.failure ("Unexpected PostgreSQL error occured:" <> unsafeStringify pgError)
@@ -111,66 +114,68 @@ main = do
 
     config ← Config.load
     pool ← liftEffect $ Pool.new config
+
+    checkPGErrors $ execute (Left pool) (Query """
+      CREATE TEMPORARY TABLE foods (
+        name text NOT NULL,
+        delicious boolean NOT NULL,
+        price NUMERIC(4,2) NOT NULL,
+        added TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (name)
+      );
+      CREATE TEMPORARY TABLE dates (
+        date date NOT NULL
+      );
+      CREATE TEMPORARY TABLE timestamps (
+        timestamp timestamptz NOT NULL
+      );
+      CREATE TEMPORARY TABLE jsons (
+        json json NOT NULL,
+        jsonb jsonb NOT NULL
+      );
+    """) Row0
+
     checkPGErrors $ withConnection pool \conn -> do
-      execute conn (Query """
-        CREATE TEMPORARY TABLE foods (
-          name text NOT NULL,
-          delicious boolean NOT NULL,
-          price NUMERIC(4,2) NOT NULL,
-          added TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (name)
-        );
-        CREATE TEMPORARY TABLE dates (
-          date date NOT NULL
-        );
-        CREATE TEMPORARY TABLE timestamps (
-          timestamp timestamptz NOT NULL
-        );
-        CREATE TEMPORARY TABLE jsons (
-          json json NOT NULL,
-          jsonb jsonb NOT NULL
-        );
-      """) Row0
 
       liftEffect $ runTest $ do
         suite "PostgreSQL client" $ do
           let
             testCount n = do
-              count <- scalar conn (Query """
+              count <- scalar (Left pool) (Query """
                 SELECT count(*) = $1
                 FROM foods
               """) (Row1 n)
               liftEffect <<< assert $ count == Just true
 
           transactionTest "transaction commit" do
-            withTransaction conn do
-              execute conn (Query """
+            withConnectionTransaction conn do
+              execute (Right conn) (Query """
                 INSERT INTO foods (name, delicious, price)
                 VALUES ($1, $2, $3)
               """) (Row3 "pork" true (D.fromString "8.30"))
               testCount 1
             testCount 1
-            execute conn (Query """
+            execute (Right conn) (Query """
               DELETE FROM foods
             """) Row0
 
           transactionTest "transaction rollback on PostgreSQL error" $ do
-            _ <- try $ withTransaction conn do
-              execute conn (Query """
+            _ <- try $ withConnectionTransaction conn do
+              execute (Right conn) (Query """
                 INSERT INTO foods (name, delicious, price)
                 VALUES ($1, $2, $3)
               """) (Row3 "pork" true (D.fromString "8.30"))
               testCount 1
 
               -- invalid SQL query --> PGError is thrown
-              execute conn (Query "foo bar") Row0
+              execute (Right conn) (Query "foo bar") Row0
 
             -- transaction should've been rolled back
             testCount 0
 
           transactionTest "transaction rollback on JavaScript exception" $ do
-            result <- lift $ try $ runExceptT $ withTransaction conn do
-              execute conn (Query """
+            result <- lift $ try $ runExceptT $ withConnectionTransaction conn do
+              execute (Right conn) (Query """
                 INSERT INTO foods (name, delicious, price)
                 VALUES ($1, $2, $3)
               """) (Row3 "pork" true (D.fromString "8.30"))
@@ -187,15 +192,18 @@ main = do
             -- transaction should've been rolled back
             testCount 0
 
-          test conn "usage of rows represented by nested tuples" $ do
-            execute conn (Query """
+          let
+            handle = Right conn
+
+          test handle "usage of rows represented by nested tuples" $ do
+            execute handle (Query """
               INSERT INTO foods (name, delicious, price)
               VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9)
             """)
               ( ("pork" /\ true /\ (D.fromString "8.30"))
               /\ ("sauerkraut" /\ false /\ (D.fromString "3.30"))
               /\ ("rookworst" /\ true /\ (D.fromString "5.60")))
-            names <- query conn (Query """
+            names <- query handle (Query """
               SELECT name, delicious
               FROM foods
               WHERE delicious
@@ -203,18 +211,18 @@ main = do
             """) Row0
             liftEffect <<< assert $ names == ["pork" /\ true, "rookworst" /\ true]
 
-          test conn "nested tuples as rows - just one element" $ do
+          test handle "nested tuples as rows - just one element" $ do
             let row = date 2010 2 31 /\ unit
-            execute conn (Query """
+            execute handle (Query """
               INSERT INTO dates (date)
               VALUES ($1)
             """) row
-            rows <- query conn (Query "SELECT date FROM dates") Row0
+            rows <- query handle (Query "SELECT date FROM dates") Row0
             liftEffect <<< assert $ rows == [row]
 
           let
             insertFood =
-              execute conn (Query """
+              execute handle (Query """
                 INSERT INTO foods (name, delicious, price)
                 VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9)
               """) (Row9
@@ -222,9 +230,9 @@ main = do
                   "sauerkraut" false (D.fromString "3.30")
                   "rookworst" true (D.fromString "5.60"))
 
-          test conn "select column subset" $ do
+          test handle "select column subset" $ do
             insertFood
-            names <- query conn (Query """
+            names <- query handle (Query """
               SELECT name, delicious
               FROM foods
               WHERE delicious
@@ -232,27 +240,27 @@ main = do
             """) Row0
             liftEffect <<< assert $ names == [Row2 "pork" true, Row2 "rookworst" true]
 
-          test conn "delete returning columns subset" $ do
+          test handle "delete returning columns subset" $ do
             insertFood
-            deleted <- query conn (Query """
+            deleted <- query handle (Query """
               DELETE FROM foods
               WHERE delicious
               RETURNING name, delicious
             """) Row0
             liftEffect <<< assert $ deleted == [Row2 "pork" true, Row2 "rookworst" true]
 
-          test conn "delete returning command tag value" $ do
+          test handle "delete returning command tag value" $ do
             insertFood
-            deleted <- command conn (Query """
+            deleted <- command handle (Query """
               DELETE FROM foods
               WHERE delicious
             """) Row0
             liftEffect <<< assert $ deleted == 2
 
-          test conn "handling instant value" $ do
+          test handle "handling instant value" $ do
             before <- liftEffect $ (unwrap <<< unInstant) <$> now
             insertFood
-            added <- query conn (Query """
+            added <- query handle (Query """
               SELECT added
               FROM foods
             """) Row0
@@ -265,9 +273,9 @@ main = do
                   && after >= (unwrap $ unInstant t))
               added
 
-          test conn "handling decimal value" $ do
+          test handle "handling decimal value" $ do
             insertFood
-            sauerkrautPrice <- query conn (Query """
+            sauerkrautPrice <- query handle (Query """
               SELECT price
               FROM foods
               WHERE NOT delicious
@@ -282,18 +290,18 @@ main = do
                 pure "integrity error was not handled"
               liftEffect $ assert $ result == "integrity error was handled"
 
-          test conn "handling date value" $ do
+          test handle "handling date value" $ do
             let
               d1 = date 2010 2 31
               d2 = date 2017 2 1
               d3 = date 2020 6 31
 
-            execute conn (Query """
+            execute handle (Query """
               INSERT INTO dates (date)
               VALUES ($1), ($2), ($3)
             """) (Row3 d1 d2 d3)
 
-            (dates :: Array (Row1 Date)) <- query conn (Query """
+            (dates :: Array (Row1 Date)) <- query handle (Query """
               SELECT *
               FROM dates
               ORDER BY date ASC
@@ -301,52 +309,52 @@ main = do
             pgEqual  3 (length dates)
             liftEffect <<< assert $ all (\(Tuple (Row1 r) e) -> e == r) $ (zip dates [d1, d2, d3])
 
-          test conn "handling Foreign.Object as json and jsonb" $ do
+          test handle "handling Foreign.Object as json and jsonb" $ do
             let jsonIn = Object.fromFoldable [Tuple "a" 1, Tuple "a" 2, Tuple "2" 3]
             let expected = Object.fromFoldable [Tuple "a" 2, Tuple "2" 3]
 
-            execute conn (Query """
+            execute handle (Query """
               INSERT INTO jsons (json, jsonb)
               VALUES ($1, $2)
             """) (Row2 jsonIn jsonIn)
 
-            (js ∷ Array (Row2 (Object Int) (Object Int))) <- query conn (Query """SELECT * FROM JSONS""") Row0
+            (js ∷ Array (Row2 (Object Int) (Object Int))) <- query handle (Query """SELECT * FROM JSONS""") Row0
             liftEffect $ assert $ all (\(Row2 j1 j2) → j1 == expected && expected == j2) js
 
-          test conn "handling Argonaut.Json as json and jsonb for an object" $ do
+          test handle "handling Argonaut.Json as json and jsonb for an object" $ do
             let input = Argonaut.fromObject (Object.fromFoldable [ Tuple "a" (Argonaut.fromString "value") ])
 
-            execute conn (Query """
+            execute handle (Query """
               INSERT INTO jsons (json, jsonb)
               VALUES ($1, $2)
             """) (Row2 input input)
 
-            (js ∷ Array (Row2 (Json) (Json))) <- query conn (Query """SELECT * FROM JSONS""") Row0
+            (js ∷ Array (Row2 (Json) (Json))) <- query handle (Query """SELECT * FROM JSONS""") Row0
             liftEffect $ assert $ all (\(Row2 j1 j2) → j1 == input && j2 == input) js
 
-          test conn "handling Argonaut.Json as json and jsonb for an array" $ do
+          test handle "handling Argonaut.Json as json and jsonb for an array" $ do
             let input = Argonaut.fromArray [ Argonaut.fromObject (Object.fromFoldable [ Tuple "a" (Argonaut.fromString "value") ])]
 
-            execute conn (Query """
+            execute handle (Query """
               INSERT INTO jsons (json, jsonb)
               VALUES ($1, $2)
             """) (Row2 input input)
 
-            (js ∷ Array (Row2 (Json) (Json))) <- query conn (Query """SELECT * FROM JSONS""") Row0
+            (js ∷ Array (Row2 (Json) (Json))) <- query handle (Query """SELECT * FROM JSONS""") Row0
             liftEffect $ assert $ all (\(Row2 j1 j2) → j1 == input && j2 == input) js
 
-          test conn "handling jsdate value" $ do
+          test handle "handling jsdate value" $ do
             let
               jsd1 = jsdate_ 2010.0 2.0 31.0 6.0 23.0 1.0 123.0
               jsd2 = jsdate_ 2017.0 2.0 1.0 12.0 59.0 42.0 999.0
               jsd3 = jsdate_ 2020.0 6.0 31.0 23.0 3.0 59.0 333.0
 
-            execute conn (Query """
+            execute handle (Query """
               INSERT INTO timestamps (timestamp)
               VALUES ($1), ($2), ($3)
             """) (Row3 jsd1 jsd2 jsd3)
 
-            (timestamps :: Array (Row1 JSDate)) <- query conn (Query """
+            (timestamps :: Array (Row1 JSDate)) <- query handle (Query """
               SELECT *
               FROM timestamps
               ORDER BY timestamp ASC
