@@ -19,8 +19,9 @@ module Test.README where
 import Prelude
 
 import Control.Monad.Except.Trans (ExceptT, runExceptT)
-import Database.PostgreSQL.PG (defaultConfiguration, PGError, command, execute, Pool, Connection, query, Query(Query))
-import Database.PostgreSQL.PG as PG
+import Data.Either (Either(..))
+import Database.PostgreSQL (Connection, DBHandle, defaultConfiguration, Pool, Query(Query), PGError)
+import Database.PostgreSQL.PG (command, execute, query, withTransaction) as PG
 import Database.PostgreSQL.Pool (new) as Pool
 import Database.PostgreSQL.Row (Row0(Row0), Row3(Row3))
 import Data.Decimal as Decimal
@@ -34,20 +35,18 @@ import Test.Assert (assert)
 The whole API for interaction with PostgreSQL is performed asynchronously in `Aff`
 (the only function which runs in plain `Effect` is `Pool.new`). Core library
 functions usually results in somthing like `Aff (Either PGError a)` which can be easily
-wrapped by user into `ExceptT` or any other custom monad stack.
+wrapped by user into `ExceptT` or any other custom monad stack. This base API is exposed by
+`PostgreSQL.Aff` module.
 To be honest we provide alternatives to functions in the `Database.PostgreSQL.PG` module that work on any stack `m` with `MonadError PGError m` and `MonadAff m`.
 The module contains two functions `withConnection` and `withTransaction` that require additional parameter - a transformation from a custom monad stack to `Aff (Either PGError a)`.
-We are going to work with `PG` type in this tutorial but please don't consider it as the only option
+We are going to work with custom `AppM` type in this tutorial but please don't consider it as the only option
 if you encounter any troubles integrating it into your own app monad stack.
 
 ```purescript
-type PG a = ExceptT PGError Aff a
+type AppM a = ExceptT PGError Aff a
 
-withConnection :: forall a. Pool -> (Connection -> PG a) -> PG a
-withConnection = PG.withConnection runExceptT
-
-withTransaction :: forall a. Connection -> PG a -> PG a
-withTransaction = PG.withTransaction runExceptT
+withTransaction :: forall a. Pool -> (DBHandle -> AppM a) -> AppM a
+withTransaction p = PG.withTransaction runExceptT p
 ```
 
 We assume here that Postgres is running on a standard local port
@@ -58,36 +57,38 @@ is run by our test suite and we want to exit after its execution quickly ;-)
 
 
 ```purescript
-run ∷ PG Unit
+run ∷ AppM Unit
 run = do
 
   pool <- liftEffect $ Pool.new
     ((defaultConfiguration "purspg") { idleTimeoutMillis = Just 1000 })
-  withConnection pool \conn -> do
 ```
 
 We can now create our temporary table which we are going to query in this example.
-`execute` ignores result value which is what we want in this case.
+`PG.execute` ignores result value which is what we want in this case.
 The last `Row0` value indicates that this `Query` doesn't take any additional parameters.
+
+Database quering functions like `execute` below can perform the action using pool (JS `Pool` instance)
+or a connection (js `Client` instance) so they expect a value of type `type DBHandle = Either Pool Connection`.
 
 ```purescript
 
-    execute conn (Query """
-      CREATE TEMPORARY TABLE fruits (
-        name text NOT NULL,
-        delicious boolean NOT NULL,
-        price NUMERIC(4,2) NOT NULL,
-        added TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (name)
-      );
-    """) Row0
+  PG.execute (Left pool) (Query """
+    CREATE TEMPORARY TABLE fruits (
+      name text NOT NULL,
+      delicious boolean NOT NULL,
+      price NUMERIC(4,2) NOT NULL,
+      added TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (name)
+    );
+  """) Row0
 ```
 
-There is `withTransaction` helper provided. You can wrap the whole
+There is a `withTransaction` helper provided. You can wrap the whole
 piece of interaction with database in it. It will rollback if any exception
 is thrown during execution of a given `Aff` block. It excecutes `COMMIT`
 in the other case.
-We start our session with insert of some data. It is done by `execute`
+We start our session with insert of some data. It is done by `PG.execute`
 function with `INSERT` statement.
 Please notice that we are passing a tuple of the arguments to this query
 using dedicated constructor. In this case `Row3`.  This library provides types
@@ -97,11 +98,11 @@ For details please investigate following classes `ToSQLRow`, `ToSQLValue`,
 `FromSQLRow` and `FromSQLValue`.
 
 ```purescript
-    withTransaction conn $ do
-      execute conn (Query """
-        INSERT INTO fruits (name, delicious, price)
-        VALUES ($1, $2, $3)
-      """) (Row3 "coconut" true (Decimal.fromString "8.30"))
+  withTransaction pool \h -> do
+    PG.execute h (Query """
+      INSERT INTO fruits (name, delicious, price)
+      VALUES ($1, $2, $3)
+    """) (Row3 "coconut" true (Decimal.fromString "8.30"))
 ```
 
 We can also use nested tuples instead of `Row*` constructors. This can be a bit more
@@ -109,10 +110,10 @@ verbose but is not restricted to limited and constant number of arguments.
 `/\` is just an alias for the `Tuple` constructor from `Data.Tuple.Nested`.
 
 ```purescript
-      execute conn (Query """
-        INSERT INTO fruits (name, delicious, price)
-        VALUES ($1, $2, $3)
-      """) ("lemon" /\ false /\ Decimal.fromString "3.30")
+    PG.execute h (Query """
+      INSERT INTO fruits (name, delicious, price)
+      VALUES ($1, $2, $3)
+    """) ("lemon" /\ false /\ Decimal.fromString "3.30")
 ```
 
 Of course `Row*` types and nested tuples can be also used when we are fetching
@@ -120,12 +121,12 @@ data from db.
 `query` function processes db response and returns an `Array` of rows.
 
 ```purescript
-      names <- query conn (Query """
-        SELECT name, delicious
-        FROM fruits
-        ORDER BY name ASC
-      """) Row0
-      liftEffect <<< assert $ names == ["coconut" /\ true, "lemon" /\ false]
+  names <- PG.query (Left pool) (Query """
+    SELECT name, delicious
+    FROM fruits
+    ORDER BY name ASC
+  """) Row0
+  liftEffect <<< assert $ names == ["coconut" /\ true, "lemon" /\ false]
 ```
 
 There is also a `command` function at our disposal.
@@ -135,8 +136,8 @@ For example we can have: `DELETE rows`, `UPDATE rows`, `INSERT oid rows` etc.
 This function should return `rows` value associated with given response.
 
 ```purescript
-      deleted <- command conn (Query """DELETE FROM fruits """) Row0
-      liftEffect <<< assert $ deleted == 2
+  deleted <- PG.command (Left pool) (Query """DELETE FROM fruits """) Row0
+  liftEffect <<< assert $ deleted == 2
 ```
 
 ## Generating SQL Queries

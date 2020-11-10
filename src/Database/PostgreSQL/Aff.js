@@ -43,11 +43,12 @@ exports.ffiConnect = function (config) {
 };
 
 exports.ffiUnsafeQuery = function(config) {
-    return function(client) {
+    // Either `Pool` or `Client` instance
+    return function(dbHandle) {
         return function(sql) {
             return function(values) {
                 return function(onError, onSuccess) {
-                    var q = client.query({
+                    var q = dbHandle.query({
                         text: sql,
                         values: values,
                         rowMode: 'array',

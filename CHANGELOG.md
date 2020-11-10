@@ -1,5 +1,13 @@
 # Changelog
 
+## v3.1.0
+
+* Move `Pool` related stuff into dedicated submodule. Rename `newPool` to `Pool.new`. (@paluh)
+
+## v3.0.0
+
+* Encode PG error and expose them as a result value. (@akheron)
+
 ## Expose connection pieces (29/02/2020)
 * Expose `connect` and `ConnectResult` (@srghma)
 
