@@ -20,16 +20,17 @@ import Prelude
 
 import Control.Monad.Except.Trans (ExceptT, runExceptT)
 import Data.Either (Either(..))
-import Database.PostgreSQL (Client, Connection, defaultConfiguration, Pool, Query(Query), PGError)
+import Database.PostgreSQL (Connection, Pool, Query(Query), PGError)
 import Database.PostgreSQL.PG (command, execute, query, withTransaction) as PG
 import Database.PostgreSQL.Pool (new) as Pool
 import Database.PostgreSQL.Row (Row0(Row0), Row3(Row3))
 import Data.Decimal as Decimal
-import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
+import Effect.Aff.Class (liftAff)
 import Effect.Class (liftEffect)
 import Test.Assert (assert)
+import Test.Config (load) as Config
 ```
 
 The whole API for interaction with PostgreSQL is performed asynchronously in `Aff`
@@ -49,6 +50,8 @@ withTransaction :: forall a. Pool -> (Connection -> AppM a) -> AppM a
 withTransaction p = PG.withTransaction runExceptT p
 ```
 
+Our tests runner reads the configuration for the current process environment or from
+the _.env_ file (please check _.env-example_ for details).
 We assume here that Postgres is running on a standard local port
 with `ident` authentication so configuration can be nearly empty (`defaultConfiguration`).
 It requires only database name which we pass to `newPool` function.
@@ -59,9 +62,8 @@ is run by our test suite and we want to exit after its execution quickly ;-)
 ```purescript
 run ∷ AppM Unit
 run = do
-
-  pool <- liftEffect $ Pool.new
-    ((defaultConfiguration "purspg") { idleTimeoutMillis = Just 1000 })
+  config ← liftAff $ Config.load
+  pool ← liftEffect $ Pool.new config
 ```
 
 We can now create our temporary table which we are going to query in this example.
