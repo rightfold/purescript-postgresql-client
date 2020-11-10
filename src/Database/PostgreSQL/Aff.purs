@@ -1,14 +1,14 @@
 module Database.PostgreSQL.Aff
-  ( DBHandle
+  ( Connection
   , PGError(..)
   , PGErrorDetail
-  , Connection
+  , Client
   , ConnectResult
   , Query(..)
   , connect
+  , withClient
+  , withClientTransaction
   , withConnection
-  , withConnectionTransaction
-  , withDBHandle
   , withTransaction
   , command
   , execute
@@ -17,7 +17,6 @@ module Database.PostgreSQL.Aff
   ) where
 
 import Prelude
-
 import Control.Monad.Error.Class (catchError, throwError)
 import Data.Array (head)
 import Data.Bifunctor (lmap)
@@ -43,7 +42,7 @@ import Foreign (Foreign)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | PostgreSQL connection.
-foreign import data Connection :: Type
+foreign import data Client :: Type
 
 -- | PostgreSQL query with parameter (`$1`, `$2`, …) and return types.
 newtype Query i o
@@ -53,12 +52,12 @@ derive instance newtypeQuery :: Newtype (Query i o) _
 
 -- | Run an action with a connection. The connection is released to the pool
 -- | when the action returns.
-withConnection ::
+withClient ::
   forall a.
   Pool ->
-  (Either PGError Connection -> Aff a) ->
+  (Either PGError Client -> Aff a) ->
   Aff a
-withConnection p k = bracket (connect p) cleanup run
+withClient p k = bracket (connect p) cleanup run
   where
   cleanup (Left _) = pure unit
 
@@ -69,13 +68,13 @@ withConnection p k = bracket (connect p) cleanup run
   run (Right { connection }) = k (Right connection)
 
 -- | Trivial helper / shortcut which also wraps
--- | the connection to provide `DBHandle`.
-withDBHandle ::
+-- | the connection to provide `Connection`.
+withConnection ::
   forall a.
   Pool ->
-  (Either PGError DBHandle -> Aff a) ->
+  (Either PGError Connection -> Aff a) ->
   Aff a
-withDBHandle p k = withConnection p (lcmap (map Right) k)
+withConnection p k = withClient p (lcmap (map Right) k)
 
 connect ::
   Pool ->
@@ -88,7 +87,7 @@ connect =
         }
 
 type ConnectResult
-  = { connection :: Connection
+  = { connection :: Client
     , done :: Effect Unit
     }
 
@@ -104,12 +103,13 @@ foreign import ffiConnect ::
 withTransaction ::
   forall a.
   Pool ->
-  (DBHandle -> Aff a) ->
+  (Connection -> Aff a) ->
   Aff (Either PGError a)
 withTransaction pool action =
-  withConnection pool case _ of
-    Right conn -> withConnectionTransaction conn do
-      (action $ Right conn)
+  withClient pool case _ of
+    Right client ->
+      withClientTransaction client do
+        (action $ Right client)
     Left err → pure $ Left err
 
 -- | TODO: Outdated docs
@@ -118,12 +118,12 @@ withTransaction pool action =
 -- | `PGError` or a JavaScript exception in the Aff context). If you want to
 -- | change the transaction mode, issue a separate `SET TRANSACTION` statement
 -- | within the transaction.
-withConnectionTransaction ::
+withClientTransaction ::
   forall a.
-  Connection ->
+  Client ->
   Aff a ->
   Aff (Either PGError a)
-withConnectionTransaction conn action =
+withClientTransaction client action =
   begin
     >>= case _ of
         Nothing -> do
@@ -139,25 +139,26 @@ withConnectionTransaction conn action =
                 Nothing -> pure (Right a)
         Just pgError -> pure (Left pgError)
   where
-  h = Right conn
+  h = Right client
+
   begin = execute h (Query "BEGIN TRANSACTION") Row0
 
   commit = execute h (Query "COMMIT TRANSACTION") Row0
 
   rollback = execute h (Query "ROLLBACK TRANSACTION") Row0
 
-type DBHandle
-  = Either Pool Connection
+type Connection
+  = Either Pool Client
 
 -- | APIs of the `Pool.query` and `Client.query` are the same.
 -- | We can dse this polyformphis to simplify ffi.
-foreign import data UntaggedDBHandle ∷ Type
+foreign import data UntaggedConnection ∷ Type
 
 -- | Execute a PostgreSQL query and discard its results.
 execute ::
   forall i o.
   (ToSQLRow i) =>
-  DBHandle ->
+  Connection ->
   Query i o ->
   i ->
   Aff (Maybe PGError)
@@ -168,7 +169,7 @@ query ::
   forall i o.
   ToSQLRow i =>
   FromSQLRow o =>
-  DBHandle ->
+  Connection ->
   Query i o ->
   i ->
   Aff (Either PGError (Array o))
@@ -182,7 +183,7 @@ scalar ::
   forall i o.
   ToSQLRow i =>
   FromSQLValue o =>
-  DBHandle ->
+  Connection ->
   Query i (Row1 o) ->
   i ->
   Aff (Either PGError (Maybe o))
@@ -194,7 +195,7 @@ scalar h sql values = query h sql values <#> map (head >>> map (case _ of Row1 a
 command ::
   forall i.
   ToSQLRow i =>
-  DBHandle ->
+  Connection ->
   Query i Int ->
   i ->
   Aff (Either PGError Int)
@@ -206,16 +207,16 @@ type QueryResult
     }
 
 unsafeQuery ::
-  DBHandle ->
+  Connection ->
   String ->
   Array Foreign ->
   Aff (Either PGError QueryResult)
 unsafeQuery c s = fromEffectFnAff <<< ffiUnsafeQuery p (toUntaggedHandler c) s
   where
-  toUntaggedHandler ∷ DBHandle → UntaggedDBHandle
+  toUntaggedHandler ∷ Connection → UntaggedConnection
   toUntaggedHandler (Left pool) = unsafeCoerce pool
 
-  toUntaggedHandler (Right conn) = unsafeCoerce conn
+  toUntaggedHandler (Right client) = unsafeCoerce client
 
   p =
     { nullableLeft: toNullable <<< map Left <<< convertError
@@ -226,13 +227,13 @@ foreign import ffiUnsafeQuery ::
   { nullableLeft :: Error -> Nullable (Either PGError QueryResult)
   , right :: QueryResult -> Either PGError QueryResult
   } ->
-  UntaggedDBHandle ->
+  UntaggedConnection ->
   String ->
   Array Foreign ->
   EffectFnAff (Either PGError QueryResult)
 
 data PGError
-  = ConnectionError String
+  = ClientError String
   | ConversionError String
   | InternalError PGErrorDetail
   | OperationalError PGErrorDetail
@@ -335,7 +336,7 @@ convertError err = case toMaybe $ ffiSQLState err of
                                       if prefix "X" s then
                                         InternalError
                                       else
-                                        const $ ConnectionError s
+                                        const $ ClientError s
 
   prefix :: String -> String -> Boolean
   prefix p = maybe false (_ == 0) <<< String.indexOf (Pattern p)
