@@ -32,6 +32,7 @@ import Data.Nullable (Nullable, toMaybe, toNullable)
 import Data.Profunctor (lcmap)
 import Data.String (Pattern(..))
 import Data.String as String
+import Data.Symbol (SProxy(..))
 import Data.Traversable (traverse)
 import Database.PostgreSQL.Pool (Pool)
 import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), fromSQLRow, toSQLRow)
@@ -42,6 +43,7 @@ import Effect.Aff.Compat (EffectFnAff, fromEffectFnAff)
 import Effect.Class (liftEffect)
 import Effect.Exception (Error)
 import Foreign (Foreign)
+import Record (delete) as Record
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | PostgreSQL connection.
@@ -113,7 +115,7 @@ withTransaction pool action =
     Right client ->
       withClientTransaction client do
         (action $ fromClient client)
-    Left err → pure $ Left err
+    Left err -> pure $ Left err
 
 -- | TODO: Outdated docs
 -- | Run an action within a transaction. The transaction is committed if the
@@ -161,7 +163,7 @@ fromClient client = Connection (Right client)
 
 -- | APIs of the `Pool.query` and `Client.query` are the same.
 -- | We can dse this polyformphis to simplify ffi.
-foreign import data UntaggedConnection ∷ Type
+foreign import data UntaggedConnection :: Type
 
 -- | Execute a PostgreSQL query and discard its results.
 execute ::
@@ -222,7 +224,7 @@ unsafeQuery ::
   Aff (Either PGError QueryResult)
 unsafeQuery conn s = fromEffectFnAff <<< ffiUnsafeQuery p (toUntaggedHandler conn) s
   where
-  toUntaggedHandler ∷ Connection → UntaggedConnection
+  toUntaggedHandler :: Connection -> UntaggedConnection
   toUntaggedHandler (Connection c) = case c of
     (Left pool) -> unsafeCoerce pool
     (Right client) -> unsafeCoerce client
@@ -242,7 +244,7 @@ foreign import ffiUnsafeQuery ::
   EffectFnAff (Either PGError QueryResult)
 
 data PGError
-  = ClientError String
+  = ClientError Error String
   | ConversionError String
   | InternalError PGErrorDetail
   | OperationalError PGErrorDetail
@@ -253,7 +255,26 @@ data PGError
   | QueryCanceledError PGErrorDetail
   | TransactionRollbackError PGErrorDetail
 
-derive instance eqPGError :: Eq PGError
+-- | Those instances are required for testing.
+instance eqPGError :: Eq PGError where
+  eq = case _, _ of
+    (ClientError _ s1), (ClientError _ s2) -> s1 == s2
+    (ConversionError s1), (ConversionError s2) -> s1 == s2
+    (InternalError err1), (InternalError err2) -> eqErr err1 err2
+    (OperationalError err1), (OperationalError err2) -> eqErr err1 err2
+    (ProgrammingError err1), (ProgrammingError err2) -> eqErr err1 err2
+    (IntegrityError err1), (IntegrityError err2) -> eqErr err1 err2
+    (DataError err1), (DataError err2) -> eqErr err1 err2
+    (NotSupportedError err1), (NotSupportedError err2) -> eqErr err1 err2
+    (QueryCanceledError err1), (QueryCanceledError err2) -> eqErr err1 err2
+    (TransactionRollbackError err1), (TransactionRollbackError err2) -> eqErr err1 err2
+    _, _ -> false
+    where
+    eqErr err1 err2 =
+      let
+        _error = SProxy :: SProxy "error"
+      in
+        eq (Record.delete _error err1) (Record.delete _error err2)
 
 derive instance genericPGError :: Generic PGError _
 
@@ -265,6 +286,7 @@ type PGErrorDetail
     , code :: String
     , message :: String
     , detail :: String
+    , error :: Error
     , hint :: String
     , position :: String
     , internalPosition :: String
@@ -345,7 +367,7 @@ convertError err = case toMaybe $ ffiSQLState err of
                                       if prefix "X" s then
                                         InternalError
                                       else
-                                        const $ ClientError s
+                                        const $ ClientError err s
 
   prefix :: String -> String -> Boolean
   prefix p = maybe false (_ == 0) <<< String.indexOf (Pattern p)

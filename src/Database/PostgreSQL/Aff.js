@@ -79,6 +79,7 @@ exports.ffiSQLState = function (error) {
 
 exports.ffiErrorDetail = function (error) {
     return {
+        error: error,
         severity: error.severity || '',
         code: error.code || '',
         message: error.message || '',
