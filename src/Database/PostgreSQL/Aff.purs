@@ -23,7 +23,7 @@ import Prelude
 import Control.Monad.Error.Class (catchError, throwError)
 import Data.Array (head)
 import Data.Bifunctor (lmap)
-import Data.Either (Either(..), either, hush)
+import Data.Either (Either(..), either)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Maybe (Maybe(..), maybe)
@@ -70,7 +70,7 @@ withClient p k = bracket (connect p) cleanup run
 
   run (Left err) = k (Left err)
 
-  run (Right { connection }) = k (Right connection)
+  run (Right { client }) = k (Right client)
 
 -- | Trivial helper / shortcut which also wraps
 -- | the connection to provide `Connection`.
@@ -92,7 +92,7 @@ connect =
         }
 
 type ConnectResult
-  = { connection :: Client
+  = { client :: Client
     , done :: Effect Unit
     }
 
@@ -173,7 +173,7 @@ execute ::
   Query i o ->
   i ->
   Aff (Maybe PGError)
-execute conn (Query sql) values = hush <<< either Right Left <$> unsafeQuery conn sql (toSQLRow values)
+execute conn (Query sql) values = either Just (const $ Nothing) <$> unsafeQuery conn sql (toSQLRow values)
 
 -- | Execute a PostgreSQL query and return its results.
 query ::
