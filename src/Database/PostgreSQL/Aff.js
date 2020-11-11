@@ -20,7 +20,7 @@ exports.ffiConnect = function (config) {
         return function (onError, onSuccess) {
             var p = pool.connect().then(function(client) {
                 onSuccess(config.right({
-                    connection: client,
+                    client: client,
                     done: function() {
                         return client.release();
                     }

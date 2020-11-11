@@ -70,7 +70,7 @@ withClient p k = bracket (connect p) cleanup run
 
   run (Left err) = k (Left err)
 
-  run (Right { connection }) = k (Right connection)
+  run (Right { client }) = k (Right client)
 
 -- | Trivial helper / shortcut which also wraps
 -- | the connection to provide `Connection`.
@@ -92,7 +92,7 @@ connect =
         }
 
 type ConnectResult
-  = { connection :: Client
+  = { client :: Client
     , done :: Effect Unit
     }
 
