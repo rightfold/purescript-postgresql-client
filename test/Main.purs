@@ -3,7 +3,6 @@ module Test.Main
   ) where
 
 import Prelude
-
 import Control.Monad.Error.Class (throwError, try)
 import Control.Monad.Except.Trans (runExceptT)
 import Control.Monad.Trans.Class (lift)
@@ -59,6 +58,7 @@ withRollback ∷
 withRollback client action = begin *> action *> rollback
   where
   conn = fromClient client
+
   begin = execute conn (Query "BEGIN TRANSACTION") Row0
 
   rollback = execute conn (Query "ROLLBACK TRANSACTION") Row0
@@ -69,6 +69,7 @@ test ∷
   AppM Unit →
   TestSuite
 test (Connection (Left pool)) name action = Test.Unit.test name $ checkPGErrors $ action
+
 test (Connection (Right client)) name action = Test.Unit.test name $ checkPGErrors $ withRollback client action
 
 transactionTest ∷
@@ -471,7 +472,7 @@ main = do
                             testPool <- liftEffect $ Pool.new (cannotConnectConfig config)
                             runExceptT (withClient testPool doNothing)
                               >>= case _ of
-                                  Left (ClientError cause) -> equal cause "ECONNREFUSED"
+                                  Left (ClientError _ cause) -> equal cause "ECONNREFUSED"
                                   _ -> Test.Unit.failure "foo"
                           Test.Unit.test "no such database" do
                             testPool <- liftEffect $ Pool.new (noSuchDatabaseConfig config)
