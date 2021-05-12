@@ -31,7 +31,6 @@ import Effect.Class (liftEffect)
 import Effect.Exception (message)
 import Foreign.Object (Object)
 import Foreign.Object (fromFoldable) as Object
-import Global.Unsafe (unsafeStringify)
 import Math ((%))
 import Partial.Unsafe (unsafePartial)
 import Test.Assert (assert)
@@ -389,3 +388,5 @@ validUriToPoolConfigs = { uri: "postgres://urllgqrivcyako:c52275a95b7f177e2850c4
 
 notValidConnUri :: PGConnectionURI
 notValidConnUri = "postgres://urllgqrivcyakoc52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969@ec2-79-124-25-231.eu-west-1.compute.amazonaws.com:5432/e7cecg4nirunpo"
+
+foreign import unsafeStringify :: forall a. a -> String

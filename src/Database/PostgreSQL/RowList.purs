@@ -5,7 +5,7 @@ module Data.PostgreSQL.RowList where
 -- 
 -- infixl 10 type RowList.Cons as :
 -- 
--- type Apply (f :: RowList -> RowList) (a ∷ RowList) = f a
+-- type Apply (f :: RowList Type -> RowList Type) (a ∷ RowList Type) = f a
 -- 
 -- infixr 0 type Apply as $
 -- 
