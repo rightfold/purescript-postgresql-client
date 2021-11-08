@@ -49,13 +49,23 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | PostgreSQL connection.
 foreign import data Client :: Type
 
+newtype Connection = Connection (Either Pool Client)
+derive instance newtypeConnection :: Newtype Connection _
+
+fromPool :: Pool -> Connection
+fromPool pool = Connection (Left pool)
+
+fromClient :: Client -> Connection
+fromClient client = Connection (Right client)
+
+
 -- | PostgreSQL query with parameter (`$1`, `$2`, …) and return types.
 newtype Query i o
   = Query String
 
 derive instance newtypeQuery :: Newtype (Query i o) _
 
--- | Run an action with a connection. The connection is released to the pool
+-- | Run an action with a client. The client is released to the pool
 -- | when the action returns.
 withClient ::
   forall a.
@@ -152,17 +162,8 @@ withClientTransaction client action =
 
   rollback = execute conn (Query "ROLLBACK TRANSACTION") Row0
 
-newtype Connection = Connection (Either Pool Client)
-derive instance newtypeConnection :: Newtype Connection _
-
-fromPool :: Pool -> Connection
-fromPool pool = Connection (Left pool)
-
-fromClient :: Client -> Connection
-fromClient client = Connection (Right client)
-
 -- | APIs of the `Pool.query` and `Client.query` are the same.
--- | We can dse this polyformphis to simplify ffi.
+-- | We can use this polyformphis to simplify ffi.
 foreign import data UntaggedConnection :: Type
 
 -- | Execute a PostgreSQL query and discard its results.
