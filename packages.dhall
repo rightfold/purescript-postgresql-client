@@ -31,8 +31,8 @@ in  upstream
           , "validation"
           , "variant"
           ]
-        , repo = "https://github.com/jordanmartinez/purescript-polyform.git"
-        , version = "updateTov0.14.1"
+        , repo = "https://github.com/purescript-polyform/polyform.git"
+        , version = "v0.9.0"
         }
       with polyform-batteries-core =
         { dependencies =
@@ -55,8 +55,8 @@ in  upstream
           , "validation"
           , "variant"
           ]
-        , repo = "https://github.com/jordanmartinez/purescript-polyform-validators.git"
-        , version = "updateTov0.14.1"
+        , repo = "https://github.com/purescript-polyform/batteries-core.git"
+        , version = "v0.2.0"
         }
       with polyform-batteries-env =
         { dependencies =
@@ -70,6 +70,6 @@ in  upstream
           , "psci-support"
           , "typelevel-prelude"
           ]
-        , repo = "https://github.com/jordanmartinez/batteries-env.git"
-        , version = "updateTov0.14.1"
+        , repo = "https://github.com/purescript-polyform/batteries-env.git"
+        , version = "v0.1.0"
         }
