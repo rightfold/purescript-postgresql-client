@@ -53,7 +53,7 @@ Our tests runner reads the configuration for the current process environment or 
 the _.env_ file (please check _.env-example_ for details).
 We assume here that Postgres is running on a standard local port
 with `ident` authentication so configuration can be nearly empty (`defaultConfiguration`).
-It requires only database name which we pass to `newPool` function.
+It requires only database name which we pass to the `newPool` function.
 Additionally we pass `idleTimeoutMillis` value because this code
 is run by our test suite and we want to exit after its execution quickly ;-)
 
