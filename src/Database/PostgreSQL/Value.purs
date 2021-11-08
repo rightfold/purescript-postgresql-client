@@ -10,7 +10,7 @@ import Control.Monad.Error.Class (throwError)
 import Control.Monad.Except (ExceptT, except, runExcept, runExceptT)
 import Data.Argonaut (Json)
 import Data.Argonaut (stringify) as Argonaut
-import Data.Array (foldl)
+import Data.Foldable (foldl)
 import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.ByteString (ByteString)
