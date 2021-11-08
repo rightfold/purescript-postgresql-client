@@ -1,7 +1,3 @@
-{-
-Welcome to a Spago project!
-You can edit this file as you like.
--}
 { name = "postgresql-client"
 , license = "BSD-3-Clause"
 , dependencies =
@@ -37,13 +33,16 @@ You can edit this file as you like.
   , "polyform-batteries-core"
   , "polyform-batteries-env"
   , "prelude"
+  , "profunctor"
   , "psci-support"
+  , "record"
   , "string-parsers"
   , "strings"
   , "test-unit"
   , "transformers"
   , "tuples"
   , "typelevel-prelude"
+  , "unsafe-coerce"
   , "validation"
   ]
 , packages = ./packages.dhall

@@ -19,17 +19,16 @@ module Database.PostgreSQL.Aff
   ) where
 
 import Prelude
-
 import Control.Monad.Error.Class (catchError, throwError)
 import Data.Array (head)
 import Data.Bifunctor (lmap)
 import Data.Either (Either(..), either)
 import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Show (genericShow)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (class Newtype)
 import Data.Nullable (Nullable, toMaybe, toNullable)
 import Data.Profunctor (lcmap)
+import Data.Show.Generic (genericShow)
 import Data.String (Pattern(..))
 import Data.String as String
 import Data.Symbol (SProxy(..))
@@ -49,7 +48,9 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | PostgreSQL connection.
 foreign import data Client :: Type
 
-newtype Connection = Connection (Either Pool Client)
+newtype Connection
+  = Connection (Either Pool Client)
+
 derive instance newtypeConnection :: Newtype Connection _
 
 fromPool :: Pool -> Connection
@@ -57,7 +58,6 @@ fromPool pool = Connection (Left pool)
 
 fromClient :: Client -> Connection
 fromClient client = Connection (Right client)
-
 
 -- | PostgreSQL query with parameter (`$1`, `$2`, …) and return types.
 newtype Query i o
@@ -316,59 +316,42 @@ convertError err = case toMaybe $ ffiSQLState err of
   convert s =
     if prefix "0A" s then
       NotSupportedError
+    else if prefix "20" s || prefix "21" s then
+      ProgrammingError
+    else if prefix "22" s then
+      DataError
+    else if prefix "23" s then
+      IntegrityError
+    else if prefix "24" s || prefix "25" s then
+      InternalError
+    else if prefix "26" s || prefix "27" s || prefix "28" s then
+      OperationalError
+    else if prefix "2B" s || prefix "2D" s || prefix "2F" s then
+      InternalError
+    else if prefix "34" s then
+      OperationalError
+    else if prefix "38" s || prefix "39" s || prefix "3B" s then
+      InternalError
+    else if prefix "3D" s || prefix "3F" s then
+      ProgrammingError
+    else if prefix "40" s then
+      TransactionRollbackError
+    else if prefix "42" s || prefix "44" s then
+      ProgrammingError
+    else if s == "57014" then
+      QueryCanceledError
+    else if prefix "5" s then
+      OperationalError
+    else if prefix "F" s then
+      InternalError
+    else if prefix "H" s then
+      OperationalError
+    else if prefix "P" s then
+      InternalError
+    else if prefix "X" s then
+      InternalError
     else
-      if prefix "20" s || prefix "21" s then
-        ProgrammingError
-      else
-        if prefix "22" s then
-          DataError
-        else
-          if prefix "23" s then
-            IntegrityError
-          else
-            if prefix "24" s || prefix "25" s then
-              InternalError
-            else
-              if prefix "26" s || prefix "27" s || prefix "28" s then
-                OperationalError
-              else
-                if prefix "2B" s || prefix "2D" s || prefix "2F" s then
-                  InternalError
-                else
-                  if prefix "34" s then
-                    OperationalError
-                  else
-                    if prefix "38" s || prefix "39" s || prefix "3B" s then
-                      InternalError
-                    else
-                      if prefix "3D" s || prefix "3F" s then
-                        ProgrammingError
-                      else
-                        if prefix "40" s then
-                          TransactionRollbackError
-                        else
-                          if prefix "42" s || prefix "44" s then
-                            ProgrammingError
-                          else
-                            if s == "57014" then
-                              QueryCanceledError
-                            else
-                              if prefix "5" s then
-                                OperationalError
-                              else
-                                if prefix "F" s then
-                                  InternalError
-                                else
-                                  if prefix "H" s then
-                                    OperationalError
-                                  else
-                                    if prefix "P" s then
-                                      InternalError
-                                    else
-                                      if prefix "X" s then
-                                        InternalError
-                                      else
-                                        const $ ClientError err s
+      const $ ClientError err s
 
   prefix :: String -> String -> Boolean
   prefix p = maybe false (_ == 0) <<< String.indexOf (Pattern p)
