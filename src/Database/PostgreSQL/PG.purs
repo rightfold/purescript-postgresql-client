@@ -30,8 +30,6 @@ type PG a
 hoistPG :: ∀ a m. MonadAff m => MonadError PGError m => PG a -> m a
 hoistPG m = liftAff m >>= either throwError pure
 
--- | Run an action with a connection. The connection is released to the pool
--- | when the action returns.
 withClient ::
   ∀ a m.
   MonadError PGError m =>
@@ -58,12 +56,6 @@ withConnection ::
   m a
 withConnection f p k = withClient f p (lcmap fromClient k)
 
--- | TODO: Update docs
--- | Run an action within a transaction. The transaction is committed if the
--- | action returns cleanly, and rolled back if the action throws (either a
--- | `PGError` or a JavaScript exception in PG context). If you want to
--- | change the transaction mode, issue a separate `SET TRANSACTION` statement
--- | within the transaction.
 withTransaction ::
   ∀ a m.
   MonadAff m =>
