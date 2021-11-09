@@ -68,7 +68,7 @@ test ∷
   String →
   AppM Unit →
   TestSuite
-test (Connection (Left pool)) name action = Test.Unit.test name $ checkPGErrors $ action
+test (Connection (Left _)) name action = Test.Unit.test name $ checkPGErrors $ action
 
 test (Connection (Right client)) name action = Test.Unit.test name $ checkPGErrors $ withRollback client action
 
@@ -478,7 +478,7 @@ main = do
                             testPool <- liftEffect $ Pool.new (noSuchDatabaseConfig config)
                             runExceptT (withClient testPool doNothing)
                               >>= case _ of
-                                  Left (ProgrammingError { code, message }) -> equal code "3D000"
+                                  Left (ProgrammingError { code }) -> equal code "3D000"
                                   _ -> Test.Unit.failure "PostgreSQL error was expected"
                           Test.Unit.test "get pool configuration from postgres uri" do
                             equal (parseURI validUriToPoolConfigs.uri) (Just validUriToPoolConfigs.poolConfig)
@@ -491,14 +491,14 @@ validUriToPoolConfigs ::
 validUriToPoolConfigs =
   { uri: "postgres://urllgqrivcyako:c52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969@ec2-79-124-25-231.eu-west-1.compute.amazonaws.com:5432/e7cecg4nirunpo"
   , poolConfig:
-    { database: "e7cecg4nirunpo"
-    , host: Just "ec2-79-124-25-231.eu-west-1.compute.amazonaws.com"
-    , idleTimeoutMillis: Nothing
-    , max: Nothing
-    , password: Just "c52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969"
-    , port: Just 5432
-    , user: Just "urllgqrivcyako"
-    }
+      { database: "e7cecg4nirunpo"
+      , host: Just "ec2-79-124-25-231.eu-west-1.compute.amazonaws.com"
+      , idleTimeoutMillis: Nothing
+      , max: Nothing
+      , password: Just "c52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969"
+      , port: Just 5432
+      , user: Just "urllgqrivcyako"
+      }
   }
 
 notValidConnUri :: PGConnectionURI
