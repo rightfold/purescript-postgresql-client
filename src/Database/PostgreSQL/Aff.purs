@@ -12,10 +12,13 @@ module Database.PostgreSQL.Aff
   , withTransaction
   , command
   , execute
+  , execute'
   , fromClient
   , fromPool
   , query
+  , query'
   , scalar
+  , scalar'
   ) where
 
 import Prelude
@@ -60,6 +63,7 @@ fromClient :: Client -> Connection
 fromClient client = Connection (Right client)
 
 -- | PostgreSQL query with parameter (`$1`, `$2`, …) and return types.
+newtype Query ∷ ∀ ik ok. ik → ok → Type
 newtype Query i o
   = Query String
 
@@ -176,6 +180,13 @@ execute ::
   Aff (Maybe PGError)
 execute conn (Query sql) values = either Just (const $ Nothing) <$> unsafeQuery conn sql (toSQLRow values)
 
+execute' ::
+  forall o.
+  Connection ->
+  Query Row0 o ->
+  Aff (Maybe PGError)
+execute' conn (Query sql) = either Just (const $ Nothing) <$> unsafeQuery conn sql (toSQLRow Row0)
+
 -- | Execute a PostgreSQL query and return its results.
 query ::
   forall i o.
@@ -189,6 +200,17 @@ query conn (Query sql) values = do
   r <- unsafeQuery conn sql (toSQLRow values)
   pure $ r >>= _.rows >>> traverse (fromSQLRow >>> lmap ConversionError)
 
+query' ::
+  forall i o.
+  ToSQLRow i =>
+  FromSQLRow o =>
+  Connection ->
+  Query Row0 o ->
+  Aff (Either PGError (Array o))
+query' conn (Query sql) = do
+  r <- unsafeQuery conn sql (toSQLRow Row0)
+  pure $ r >>= _.rows >>> traverse (fromSQLRow >>> lmap ConversionError)
+
 -- | Execute a PostgreSQL query and return the first field of the first row in
 -- | the result.
 scalar ::
@@ -200,6 +222,14 @@ scalar ::
   i ->
   Aff (Either PGError (Maybe o))
 scalar conn sql values = query conn sql values <#> map (head >>> map (case _ of Row1 a -> a))
+
+scalar' ::
+  forall o.
+  FromSQLValue o =>
+  Connection ->
+  Query Row0 (Row1 o) ->
+  Aff (Either PGError (Maybe o))
+scalar' conn sql = query conn sql Row0 <#> map (head >>> map (case _ of Row1 a -> a))
 
 -- | Execute a PostgreSQL query and return its command tag value
 -- | (how many rows were affected by the query). This may be useful

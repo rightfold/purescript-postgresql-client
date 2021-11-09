@@ -41,6 +41,6 @@ load = do
   env ← liftEffect $ getEnv <#> (Object.toUnfoldable ∷ _ → Array _) >>> Map.fromFoldable
   runValidator validator env >>= un V
     >>> case _ of
-        Left err → do
+        Left _ → do
           throwError $ error "Configuration error. Please verify your environment and .env file."
         Right p → pure p
