@@ -9,11 +9,9 @@ module Database.PostgreSQL.Pool
   , Pool
   , totalCount
   , waitingCount
-  )
-  where
+  ) where
 
 import Prelude (bind, flip, pure, ($))
-
 import Data.Either (hush)
 import Data.Int (fromString)
 import Data.Maybe (Maybe(..))
@@ -40,6 +38,7 @@ type Configuration'
     , database :: String
     , max :: Nullable Int
     , idleTimeoutMillis :: Nullable Int
+    , connectionTimeoutMillis :: Nullable Int
     }
 
 -- | PostgreSQL connection pool configuration.
@@ -47,6 +46,7 @@ type Configuration
   = { database :: Database
     , host :: Maybe String
     , idleTimeoutMillis :: Maybe Int
+    , connectionTimeoutMillis :: Maybe Int
     , max :: Maybe Int
     , password :: Maybe String
     , port :: Maybe Int
@@ -74,6 +74,7 @@ parseURI uri =
           { database: toStr database
           , host: Just $ toStr host
           , idleTimeoutMillis: Nothing
+          , connectionTimeoutMillis: Nothing
           , max: Nothing
           , password: Just $ toStr password
           , port: fromString $ toStr port
@@ -89,6 +90,7 @@ defaultConfiguration database =
   { database
   , host: Nothing
   , idleTimeoutMillis: Nothing
+  , connectionTimeoutMillis: Nothing
   , max: Nothing
   , password: Nothing
   , port: Nothing
@@ -111,6 +113,7 @@ new cfg = ffiNew $ cfg'
     , database: cfg.database
     , max: toNullable cfg.max
     , idleTimeoutMillis: toNullable cfg.idleTimeoutMillis
+    , connectionTimeoutMillis: toNullable cfg.connectionTimeoutMillis
     }
 
 foreign import totalCount :: Pool -> Effect Int
@@ -118,4 +121,3 @@ foreign import totalCount :: Pool -> Effect Int
 foreign import idleCount :: Pool -> Effect Int
 
 foreign import waitingCount :: Pool -> Effect Int
-
