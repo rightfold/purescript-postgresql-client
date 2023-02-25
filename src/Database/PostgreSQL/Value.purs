@@ -183,7 +183,10 @@ else instance toSQLValueJson :: ToSQLValue Json where
 newtypeToSQLValue ∷ ∀ a b. Newtype a b ⇒ ToSQLValue b ⇒ a → Foreign
 newtypeToSQLValue = unwrap >>> toSQLValue
 
-foreign import null :: Foreign
+null :: Foreign
+null = null_
+
+foreign import null_ :: Foreign
 foreign import instantToString :: Instant -> Foreign
 foreign import instantFromString :: (String -> Either String Number) -> (Number -> Either String Number) -> Foreign -> Either String Number
 foreign import unsafeIsBuffer :: ∀ a. a -> Boolean

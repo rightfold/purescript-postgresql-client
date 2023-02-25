@@ -3,6 +3,7 @@ module Test.Main
   ) where
 
 import Prelude
+
 import Control.Monad.Error.Class (throwError, try)
 import Control.Monad.Except.Trans (runExceptT)
 import Control.Monad.Trans.Class (lift)
@@ -19,19 +20,21 @@ import Data.JSDate (JSDate, jsdate, toInstant)
 import Data.JSDate as JSDate
 import Data.Maybe (Maybe(..), fromJust)
 import Data.Newtype (unwrap)
+import Data.Number ((%))
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
 import Database.PostgreSQL (Client, Configuration, Connection(..), PGConnectionURI, PGError(..), Pool, Query(Query), Row0(Row0), Row1(Row1), Row2(Row2), Row3(Row3), Row9(Row9), fromClient, fromPool, parseURI)
 import Database.PostgreSQL.PG (command, execute, onIntegrityError, query, scalar)
 import Database.PostgreSQL.PG (withClient, withClientTransaction) as PG
 import Database.PostgreSQL.Pool (new) as Pool
+import Debug (traceM)
 import Effect (Effect)
 import Effect.Aff (Aff, error, launchAff)
 import Effect.Class (liftEffect)
 import Effect.Exception (message)
 import Foreign.Object (Object)
 import Foreign.Object (fromFoldable) as Object
-import Math ((%))
+import JS.Unsafe.Stringify (unsafeStringify)
 import Partial.Unsafe (unsafePartial)
 import Test.Assert (assert)
 import Test.Config (load) as Config
@@ -504,4 +507,3 @@ validUriToPoolConfigs =
 notValidConnUri :: PGConnectionURI
 notValidConnUri = "postgres://urllgqrivcyakoc52275a95b7f177e2850c49de9bfa8bedc457ce860ccca664cb15db973554969@ec2-79-124-25-231.eu-west-1.compute.amazonaws.com:5432/e7cecg4nirunpo"
 
-foreign import unsafeStringify :: forall a. a -> String

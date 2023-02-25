@@ -34,7 +34,6 @@ import Data.Profunctor (lcmap)
 import Data.Show.Generic (genericShow)
 import Data.String (Pattern(..))
 import Data.String as String
-import Data.Symbol (SProxy(..))
 import Data.Traversable (traverse)
 import Database.PostgreSQL.Pool (Pool)
 import Database.PostgreSQL.Row (class FromSQLRow, class ToSQLRow, Row0(..), Row1(..), fromSQLRow, toSQLRow)
@@ -46,6 +45,7 @@ import Effect.Class (liftEffect)
 import Effect.Exception (Error)
 import Foreign (Foreign)
 import Record (delete) as Record
+import Type.Proxy (Proxy(..))
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | PostgreSQL connection.
@@ -303,7 +303,7 @@ instance eqPGError :: Eq PGError where
     where
     eqErr err1 err2 =
       let
-        _error = SProxy :: SProxy "error"
+        _error = Proxy :: Proxy "error"
       in
         eq (Record.delete _error err1) (Record.delete _error err2)
 

@@ -21,9 +21,9 @@ import Data.Nullable (Nullable, toNullable)
 import Data.String.CodeUnits (singleton)
 import Data.Traversable (foldMap)
 import Effect (Effect)
-import Text.Parsing.StringParser (runParser)
-import Text.Parsing.StringParser.CodePoints (anyChar, char, string)
-import Text.Parsing.StringParser.Combinators (many, manyTill)
+import StringParser (runParser)
+import StringParser.CodePoints (anyChar, char, string)
+import StringParser.Combinators (many, manyTill)
 
 -- | PostgreSQL connection pool.
 foreign import data Pool :: Type

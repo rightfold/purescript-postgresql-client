@@ -1,15 +1,13 @@
 /* global Buffer, exports, require */
 /* jshint -W097 */
 
-'use strict';
+export const null_ = null;
 
-exports['null'] = null;
-
-exports.instantToString = function(i) {
+export const instantToString = function(i) {
     return new Date(i).toUTCString();
 };
 
-exports.instantFromString = function(Left) {
+export const instantFromString = function(Left) {
   return function(Right) {
     return function(s) {
       try {
@@ -21,6 +19,6 @@ exports.instantFromString = function(Left) {
   };
 };
 
-exports.unsafeIsBuffer = function(x) {
+export const unsafeIsBuffer = function(x) {
     return x instanceof Buffer;
 };

@@ -1,21 +1,19 @@
 /* global exports, require */
 /* jshint -W097 */
 
-'use strict';
-
 // `pg related code/bindings are done here as we want to
 // allow frontend modules to access `PostgreSQL.*` classes too.
 // Putting this import into `PostgreSQL/Value.js` caused is a problem
 // for the web bundlers etc.
 
-var pg = require('pg');
+import pg from 'pg';
 
 // pg does strange thing converting DATE
 // value to js Date, so we have
 // to prevent this craziness
 pg.types.setTypeParser(1082 /* DATE_OID */, function(dateString) { return dateString; });
 
-exports.ffiConnect = function (config) {
+export const ffiConnect = function (config) {
     return function (pool) {
         return function (onError, onSuccess) {
             var p = pool.connect().then(function(client) {
@@ -42,7 +40,7 @@ exports.ffiConnect = function (config) {
     };
 };
 
-exports.ffiUnsafeQuery = function(config) {
+export const ffiUnsafeQuery = function(config) {
     // Either `Pool` or `Client` instance
     return function(dbHandle) {
         return function(sql) {
@@ -73,11 +71,11 @@ exports.ffiUnsafeQuery = function(config) {
     };
 };
 
-exports.ffiSQLState = function (error) {
+export const ffiSQLState = function (error) {
     return error.code || null;
 };
 
-exports.ffiErrorDetail = function (error) {
+export const ffiErrorDetail = function (error) {
     return {
         error: error,
         severity: error.severity || '',
