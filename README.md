@@ -142,12 +142,6 @@ This function should return `rows` value associated with given response.
   liftEffect <<< assert $ deleted == 2
 ```
 
-## Generating SQL Queries
-
-The `purspg` preprocessor has been replaced by `sqltopurs`, which is a code
-generator instead of a preprocessor, and easier to use.
-
-[sqltopurs]: https://github.com/rightfold/sqltopurs
 [pg]: https://www.npmjs.com/package/pg
 [decimal.js]: https://www.npmjs.com/package/decimal.js
 
@@ -157,10 +151,3 @@ generator instead of a preprocessor, and easier to use.
 
 Test database is read from the environment or loaded from _.env_ file. You can find _.env-example_ in the repo with some simple testing db setup.
 
-### Releasing
-
-Till we are hosted on the github platform let's just use github releasing model for tagging new versions and `github-release-notes` to generate CHANGELOG.md from it:
-
-`$ # This only requires repo access`
-`$ export GREN_GITHUB_TOKEN=...`
-`$ github-release-notes changelog --override`
