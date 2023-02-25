@@ -9,8 +9,7 @@ module Database.PostgreSQL.Pool
   , Pool
   , totalCount
   , waitingCount
-  )
-  where
+  ) where
 
 import Prelude (bind, flip, pure, ($))
 
@@ -28,33 +27,31 @@ import StringParser.Combinators (many, manyTill)
 -- | PostgreSQL connection pool.
 foreign import data Pool :: Type
 
-type Database
-  = String
+type Database = String
 
 -- | Configuration which we actually pass to FFI.
-type Configuration'
-  = { user :: Nullable String
-    , password :: Nullable String
-    , host :: Nullable String
-    , port :: Nullable Int
-    , database :: String
-    , max :: Nullable Int
-    , idleTimeoutMillis :: Nullable Int
-    }
+type Configuration' =
+  { user :: Nullable String
+  , password :: Nullable String
+  , host :: Nullable String
+  , port :: Nullable Int
+  , database :: String
+  , max :: Nullable Int
+  , idleTimeoutMillis :: Nullable Int
+  }
 
 -- | PostgreSQL connection pool configuration.
-type Configuration
-  = { database :: Database
-    , host :: Maybe String
-    , idleTimeoutMillis :: Maybe Int
-    , max :: Maybe Int
-    , password :: Maybe String
-    , port :: Maybe Int
-    , user :: Maybe String
-    }
+type Configuration =
+  { database :: Database
+  , host :: Maybe String
+  , idleTimeoutMillis :: Maybe Int
+  , max :: Maybe Int
+  , password :: Maybe String
+  , port :: Maybe Int
+  , user :: Maybe String
+  }
 
-type PGConnectionURI
-  = String
+type PGConnectionURI = String
 
 -- | Get the default pool configuration from postgres connection uri
 -- | TODO:
@@ -95,9 +92,9 @@ defaultConfiguration database =
   , user: Nothing
   }
 
-foreign import ffiNew ::
-  Configuration' ->
-  Effect Pool
+foreign import ffiNew
+  :: Configuration'
+  -> Effect Pool
 
 -- | Create a new connection pool.
 new :: Configuration -> Effect Pool

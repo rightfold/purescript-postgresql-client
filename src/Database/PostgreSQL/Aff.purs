@@ -51,8 +51,7 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | PostgreSQL connection.
 foreign import data Client :: Type
 
-newtype Connection
-  = Connection (Either Pool Client)
+newtype Connection = Connection (Either Pool Client)
 
 derive instance newtypeConnection :: Newtype Connection _
 
@@ -63,19 +62,18 @@ fromClient :: Client -> Connection
 fromClient client = Connection (Right client)
 
 -- | PostgreSQL query with parameter (`$1`, `$2`, …) and return types.
-newtype Query ∷ ∀ ik ok. ik → ok → Type
-newtype Query i o
-  = Query String
+newtype Query :: forall ik ok. ik -> ok -> Type
+newtype Query i o = Query String
 
 derive instance newtypeQuery :: Newtype (Query i o) _
 
 -- | Run an action with a client. The client is released to the pool
 -- | when the action returns.
-withClient ::
-  forall a.
-  Pool ->
-  (Either PGError Client -> Aff a) ->
-  Aff a
+withClient
+  :: forall a
+   . Pool
+  -> (Either PGError Client -> Aff a)
+  -> Aff a
 withClient p k = bracket (connect p) cleanup run
   where
   cleanup (Left _) = pure unit
@@ -88,42 +86,42 @@ withClient p k = bracket (connect p) cleanup run
 
 -- | Trivial helper / shortcut which also wraps
 -- | the connection to provide `Connection`.
-withConnection ::
-  forall a.
-  Pool ->
-  (Either PGError Connection -> Aff a) ->
-  Aff a
+withConnection
+  :: forall a
+   . Pool
+  -> (Either PGError Connection -> Aff a)
+  -> Aff a
 withConnection p k = withClient p (lcmap (map fromClient) k)
 
-connect ::
-  Pool ->
-  Aff (Either PGError ConnectResult)
+connect
+  :: Pool
+  -> Aff (Either PGError ConnectResult)
 connect =
   fromEffectFnAff
     <<< ffiConnect
-        { nullableLeft: toNullable <<< map Left <<< convertError
-        , right: Right
-        }
+      { nullableLeft: toNullable <<< map Left <<< convertError
+      , right: Right
+      }
 
-type ConnectResult
-  = { client :: Client
-    , done :: Effect Unit
-    }
+type ConnectResult =
+  { client :: Client
+  , done :: Effect Unit
+  }
 
-foreign import ffiConnect ::
-  forall a.
-  { nullableLeft :: Error -> Nullable (Either PGError ConnectResult)
-  , right :: a -> Either PGError ConnectResult
-  } ->
-  Pool ->
-  EffectFnAff (Either PGError ConnectResult)
+foreign import ffiConnect
+  :: forall a
+   . { nullableLeft :: Error -> Nullable (Either PGError ConnectResult)
+     , right :: a -> Either PGError ConnectResult
+     }
+  -> Pool
+  -> EffectFnAff (Either PGError ConnectResult)
 
 -- | TODO: Provide docs
-withTransaction ::
-  forall a.
-  Pool ->
-  (Connection -> Aff a) ->
-  Aff (Either PGError a)
+withTransaction
+  :: forall a
+   . Pool
+  -> (Connection -> Aff a)
+  -> Aff (Either PGError a)
 withTransaction pool action =
   withClient pool case _ of
     Right client ->
@@ -137,26 +135,26 @@ withTransaction pool action =
 -- | `PGError` or a JavaScript exception in the Aff context). If you want to
 -- | change the transaction mode, issue a separate `SET TRANSACTION` statement
 -- | within the transaction.
-withClientTransaction ::
-  forall a.
-  Client ->
-  Aff a ->
-  Aff (Either PGError a)
+withClientTransaction
+  :: forall a
+   . Client
+  -> Aff a
+  -> Aff (Either PGError a)
 withClientTransaction client action =
   begin
     >>= case _ of
-        Nothing -> do
-          a <-
-            action
-              `catchError`
-                \jsErr -> do
-                  void $ rollback
-                  throwError jsErr
-          commit
-            >>= case _ of
-                Just pgError -> pure (Left pgError)
-                Nothing -> pure (Right a)
-        Just pgError -> pure (Left pgError)
+      Nothing -> do
+        a <-
+          action
+            `catchError`
+              \jsErr -> do
+                void $ rollback
+                throwError jsErr
+        commit
+          >>= case _ of
+            Just pgError -> pure (Left pgError)
+            Nothing -> pure (Right a)
+      Just pgError -> pure (Left pgError)
   where
   conn = fromClient client
 
@@ -171,88 +169,88 @@ withClientTransaction client action =
 foreign import data UntaggedConnection :: Type
 
 -- | Execute a PostgreSQL query and discard its results.
-execute ::
-  forall i o.
-  (ToSQLRow i) =>
-  Connection ->
-  Query i o ->
-  i ->
-  Aff (Maybe PGError)
+execute
+  :: forall i o
+   . (ToSQLRow i)
+  => Connection
+  -> Query i o
+  -> i
+  -> Aff (Maybe PGError)
 execute conn (Query sql) values = either Just (const $ Nothing) <$> unsafeQuery conn sql (toSQLRow values)
 
-execute' ::
-  forall o.
-  Connection ->
-  Query Row0 o ->
-  Aff (Maybe PGError)
+execute'
+  :: forall o
+   . Connection
+  -> Query Row0 o
+  -> Aff (Maybe PGError)
 execute' conn (Query sql) = either Just (const $ Nothing) <$> unsafeQuery conn sql (toSQLRow Row0)
 
 -- | Execute a PostgreSQL query and return its results.
-query ::
-  forall i o.
-  ToSQLRow i =>
-  FromSQLRow o =>
-  Connection ->
-  Query i o ->
-  i ->
-  Aff (Either PGError (Array o))
+query
+  :: forall i o
+   . ToSQLRow i
+  => FromSQLRow o
+  => Connection
+  -> Query i o
+  -> i
+  -> Aff (Either PGError (Array o))
 query conn (Query sql) values = do
   r <- unsafeQuery conn sql (toSQLRow values)
   pure $ r >>= _.rows >>> traverse (fromSQLRow >>> lmap ConversionError)
 
-query' ::
-  forall i o.
-  ToSQLRow i =>
-  FromSQLRow o =>
-  Connection ->
-  Query Row0 o ->
-  Aff (Either PGError (Array o))
+query'
+  :: forall i o
+   . ToSQLRow i
+  => FromSQLRow o
+  => Connection
+  -> Query Row0 o
+  -> Aff (Either PGError (Array o))
 query' conn (Query sql) = do
   r <- unsafeQuery conn sql (toSQLRow Row0)
   pure $ r >>= _.rows >>> traverse (fromSQLRow >>> lmap ConversionError)
 
 -- | Execute a PostgreSQL query and return the first field of the first row in
 -- | the result.
-scalar ::
-  forall i o.
-  ToSQLRow i =>
-  FromSQLValue o =>
-  Connection ->
-  Query i (Row1 o) ->
-  i ->
-  Aff (Either PGError (Maybe o))
+scalar
+  :: forall i o
+   . ToSQLRow i
+  => FromSQLValue o
+  => Connection
+  -> Query i (Row1 o)
+  -> i
+  -> Aff (Either PGError (Maybe o))
 scalar conn sql values = query conn sql values <#> map (head >>> map (case _ of Row1 a -> a))
 
-scalar' ::
-  forall o.
-  FromSQLValue o =>
-  Connection ->
-  Query Row0 (Row1 o) ->
-  Aff (Either PGError (Maybe o))
+scalar'
+  :: forall o
+   . FromSQLValue o
+  => Connection
+  -> Query Row0 (Row1 o)
+  -> Aff (Either PGError (Maybe o))
 scalar' conn sql = query conn sql Row0 <#> map (head >>> map (case _ of Row1 a -> a))
 
 -- | Execute a PostgreSQL query and return its command tag value
 -- | (how many rows were affected by the query). This may be useful
 -- | for example with `DELETE` or `UPDATE` queries.
-command ::
-  forall i.
-  ToSQLRow i =>
-  Connection ->
-  Query i Int ->
-  i ->
-  Aff (Either PGError Int)
+command
+  :: forall i
+   . ToSQLRow i
+  => Connection
+  -> Query i Int
+  -> i
+  -> Aff (Either PGError Int)
 command conn (Query sql) values = map _.rowCount <$> unsafeQuery conn sql (toSQLRow values)
 
-type QueryResult
-  = { rows :: Array (Array Foreign)
-    , rowCount :: Int
-    }
+type QueryResult =
+  { rows :: Array (Array Foreign)
+  , rowCount :: Int
+  }
 
-unsafeQuery ::
-  Connection ->
-  String ->
-  Array Foreign ->
-  Aff (Either PGError QueryResult)
+unsafeQuery
+  :: Connection
+  -> String
+  -> Array Foreign
+  -> Aff (Either PGError QueryResult)
 unsafeQuery conn s = fromEffectFnAff <<< ffiUnsafeQuery p (toUntaggedHandler conn) s
   where
   toUntaggedHandler :: Connection -> UntaggedConnection
@@ -265,14 +263,14 @@ unsafeQuery conn s = fromEffectFnAff <<< ffiUnsafeQuery p (toUntaggedHandler con
     , right: Right
     }
 
-foreign import ffiUnsafeQuery ::
-  { nullableLeft :: Error -> Nullable (Either PGError QueryResult)
-  , right :: QueryResult -> Either PGError QueryResult
-  } ->
-  UntaggedConnection ->
-  String ->
-  Array Foreign ->
-  EffectFnAff (Either PGError QueryResult)
+foreign import ffiUnsafeQuery
+  :: { nullableLeft :: Error -> Nullable (Either PGError QueryResult)
+     , right :: QueryResult -> Either PGError QueryResult
+     }
+  -> UntaggedConnection
+  -> String
+  -> Array Foreign
+  -> EffectFnAff (Either PGError QueryResult)
 
 data PGError
   = ClientError Error String
@@ -312,26 +310,26 @@ derive instance genericPGError :: Generic PGError _
 instance showPGError :: Show PGError where
   show = genericShow
 
-type PGErrorDetail
-  = { severity :: String
-    , code :: String
-    , message :: String
-    , detail :: String
-    , error :: Error
-    , hint :: String
-    , position :: String
-    , internalPosition :: String
-    , internalQuery :: String
-    , where_ :: String
-    , schema :: String
-    , table :: String
-    , column :: String
-    , dataType :: String
-    , constraint :: String
-    , file :: String
-    , line :: String
-    , routine :: String
-    }
+type PGErrorDetail =
+  { severity :: String
+  , code :: String
+  , message :: String
+  , detail :: String
+  , error :: Error
+  , hint :: String
+  , position :: String
+  , internalPosition :: String
+  , internalQuery :: String
+  , where_ :: String
+  , schema :: String
+  , table :: String
+  , column :: String
+  , dataType :: String
+  , constraint :: String
+  , file :: String
+  , line :: String
+  , routine :: String
+  }
 
 foreign import ffiSQLState :: Error -> Nullable String
 

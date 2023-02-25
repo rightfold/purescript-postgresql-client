@@ -24,20 +24,19 @@ import Database.PostgreSQL.Value (class FromSQLValue)
 import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff, liftAff)
 
-type PG a
-  = Aff (Either PGError a)
+type PG a = Aff (Either PGError a)
 
-hoistPG :: ∀ a m. MonadAff m => MonadError PGError m => PG a -> m a
+hoistPG :: forall a m. MonadAff m => MonadError PGError m => PG a -> m a
 hoistPG m = liftAff m >>= either throwError pure
 
-withClient ::
-  ∀ a m.
-  MonadError PGError m =>
-  MonadAff m =>
-  (m a -> Aff (Either PGError a)) ->
-  Pool ->
-  (Client -> m a) ->
-  m a
+withClient
+  :: forall a m
+   . MonadError PGError m
+  => MonadAff m
+  => (m a -> Aff (Either PGError a))
+  -> Pool
+  -> (Client -> m a)
+  -> m a
 withClient f p k = do
   res <-
     liftAff
@@ -46,24 +45,24 @@ withClient f p k = do
           Left pgErr -> pure $ Left pgErr
   either throwError pure res
 
-withConnection ::
-  ∀ a m.
-  MonadError PGError m =>
-  MonadAff m =>
-  (m a -> Aff (Either PGError a)) ->
-  Pool ->
-  (Connection -> m a) ->
-  m a
+withConnection
+  :: forall a m
+   . MonadError PGError m
+  => MonadAff m
+  => (m a -> Aff (Either PGError a))
+  -> Pool
+  -> (Connection -> m a)
+  -> m a
 withConnection f p k = withClient f p (lcmap fromClient k)
 
-withTransaction ::
-  ∀ a m.
-  MonadAff m =>
-  MonadError PGError m =>
-  (m a -> Aff (Either PGError a)) ->
-  Pool ->
-  (Connection -> m a) ->
-  m a
+withTransaction
+  :: forall a m
+   . MonadAff m
+  => MonadError PGError m
+  => (m a -> Aff (Either PGError a))
+  -> Pool
+  -> (Connection -> m a)
+  -> m a
 withTransaction f pool action = do
   res <-
     liftAff
@@ -71,79 +70,79 @@ withTransaction f pool action = do
           (f (action client))
   either throwError pure $ join res
 
-withClientTransaction ::
-  ∀ a m.
-  MonadAff m =>
-  MonadError PGError m =>
-  (m a -> Aff (Either PGError a)) ->
-  Client ->
-  m a ->
-  m a
+withClientTransaction
+  :: forall a m
+   . MonadAff m
+  => MonadError PGError m
+  => (m a -> Aff (Either PGError a))
+  -> Client
+  -> m a
+  -> m a
 withClientTransaction f client action = do
   res <- liftAff $ Aff.withClientTransaction client (f action)
   either throwError pure $ join res
 
 -- | Execute a PostgreSQL query and discard its results.
-execute ::
-  ∀ i o m.
-  ToSQLRow i =>
-  MonadError PGError m =>
-  MonadAff m =>
-  Connection ->
-  Query i o ->
-  i ->
-  m Unit
+execute
+  :: forall i o m
+   . ToSQLRow i
+  => MonadError PGError m
+  => MonadAff m
+  => Connection
+  -> Query i o
+  -> i
+  -> m Unit
 execute h sql values = do
   err <- liftAff $ Aff.execute h sql values
   maybe (pure unit) throwError err
 
 -- | Execute a PostgreSQL query and return its results.
-query ::
-  ∀ i o m.
-  ToSQLRow i =>
-  FromSQLRow o =>
-  MonadError PGError m =>
-  MonadAff m =>
-  Connection ->
-  Query i o ->
-  i ->
-  m (Array o)
+query
+  :: forall i o m
+   . ToSQLRow i
+  => FromSQLRow o
+  => MonadError PGError m
+  => MonadAff m
+  => Connection
+  -> Query i o
+  -> i
+  -> m (Array o)
 query h sql = hoistPG <<< Aff.query h sql
 
 -- | Execute a PostgreSQL query and return the first field of the first row in
 -- | the result.
-scalar ::
-  ∀ i o m.
-  ToSQLRow i =>
-  FromSQLValue o =>
-  MonadError PGError m =>
-  MonadAff m =>
-  Connection ->
-  Query i (Row1 o) ->
-  i ->
-  m (Maybe o)
+scalar
+  :: forall i o m
+   . ToSQLRow i
+  => FromSQLValue o
+  => MonadError PGError m
+  => MonadAff m
+  => Connection
+  -> Query i (Row1 o)
+  -> i
+  -> m (Maybe o)
 scalar h sql = hoistPG <<< Aff.scalar h sql
 
 -- | Execute a PostgreSQL query and return its command tag value
 -- | (how many rows were affected by the query). This may be useful
 -- | for example with `DELETE` or `UPDATE` queries.
-command ::
-  ∀ i m.
-  ToSQLRow i =>
-  MonadError PGError m =>
-  MonadAff m =>
-  Connection ->
-  Query i Int ->
-  i ->
-  m Int
+command
+  :: forall i m
+   . ToSQLRow i
+  => MonadError PGError m
+  => MonadAff m
+  => Connection
+  -> Query i Int
+  -> i
+  -> m Int
 command h sql = hoistPG <<< Aff.command h sql
 
-onIntegrityError ::
-  ∀ a m.
-  MonadError PGError m =>
-  m a ->
-  m a ->
-  m a
+onIntegrityError
+  :: forall a m
+   . MonadError PGError m
+  => m a
+  -> m a
+  -> m a
 onIntegrityError errorResult db = catchError db handleError
   where
   handleError e = case e of
