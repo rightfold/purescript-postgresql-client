@@ -3,13 +3,14 @@
   "dependencies": {
     "decimal.js": "^10.0.0",
     "pg": "^8.9.0",
-    "pg-native": "^3.0.1",
-    "postgres": "^1.0.2"
+    "pg-native": "^3.0.1"
   },
   "devDependencies": {
     "github-release-notes": "^0.17.1",
     "paluh-litps": "^0.1.4",
-    "pulp": "^15.0.0"
+    "pulp": "^15.0.0",
+    "spago": "0.20.9",
+    "purescript": "0.15.7"
   },
   "scripts": {
     "pretest": "paluh-litps compile --file README.md; mv README.purs test/README.purs",

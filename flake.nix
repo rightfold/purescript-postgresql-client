@@ -44,7 +44,7 @@
             pkgs.nodejs-18_x
             nodejs-16
             pkgs.pkgconfig
-            pkgs.postgresql
+            pkgs.postgresql_12
             pkgs.python27
             pkgs.python37
             pkgs.unzip
